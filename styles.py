@@ -1,376 +1,513 @@
-CSS = """
+"""Golf Journey Pro v5.0 — Augusta-inspired premium theme."""
+
+# Color tokens — "Masters" palette
+COLORS = {
+    "bg":          "#0B1410",     # near-black with green undertone
+    "bg_2":        "#0F1B16",     # raised surfaces
+    "bg_3":        "#152620",     # cards
+    "border":      "#1F3329",
+    "border_2":    "#2A4536",
+    "fairway":     "#0E5C3A",     # deep masters green
+    "fairway_2":   "#137A4D",     # brighter fairway
+    "flag":        "#D4A24C",     # warm gold (flag stick / accent)
+    "cream":       "#F5EFE0",     # parchment text
+    "cream_dim":   "#C9C2B0",
+    "muted":       "#8A8B83",
+    "danger":      "#D4574C",
+    "text":        "#F5EFE0",
+    "text_dim":    "#A8A99F",
+}
+
+CSS = f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-/* ── Global ─────────────────────────────────────────── */
-html, body, [class*="css"] {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-    background-color: #080808 !important;
-    color: #fff !important;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
-#MainMenu, footer, header { visibility: hidden; }
-.block-container {
-    padding: 1.2rem 1.5rem !important;
-    max-width: 1400px !important;
-}
+* {{ -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }}
 
-/* ── Sidebar ────────────────────────────────────────── */
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0D0D0D 0%, #050505 100%) !important;
-    border-right: 1px solid #1A1A1A !important;
-}
-section[data-testid="stSidebar"] * { color: #fff !important; }
-section[data-testid="stSidebar"] .stRadio label {
-    padding: 12px 14px !important;
-    border-radius: 12px !important;
-    transition: all 0.15s ease !important;
-    margin-bottom: 4px !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-}
-section[data-testid="stSidebar"] .stRadio label:hover {
-    background: #161616 !important;
-}
+html, body, [class*="css"] {{
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: {COLORS['text']};
+}}
 
-/* ── KPI Cards (premium gradient style) ─────────────── */
-.kpi-card {
-    background: linear-gradient(135deg, #111 0%, #0c0c0c 100%);
-    border: 1px solid #1E1E1E;
-    border-radius: 18px;
-    padding: 22px 24px;
-    margin-bottom: 4px;
-    transition: all .25s ease;
-    position: relative;
-    overflow: hidden;
-}
-.kpi-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, transparent, var(--accent, #00D4AA), transparent);
-    opacity: 0.6;
-}
-.kpi-card:hover {
-    border-color: #00D4AA50;
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0,212,170,0.08);
-}
-.kpi-label {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #666;
-    margin-bottom: 12px;
-}
-.kpi-value {
-    font-size: 42px;
-    font-weight: 900;
-    letter-spacing: -1.5px;
-    color: #fff;
-    line-height: 1;
-}
-.kpi-unit {
-    font-size: 16px;
-    font-weight: 400;
-    color: #777;
-    margin-left: 4px;
-}
-.kpi-sub {
-    font-size: 12px;
-    color: #888;
-    margin-top: 10px;
-}
-.kpi-up { color: #00D4AA !important; font-weight: 600; }
-.kpi-warn { color: #FFB800 !important; font-weight: 600; }
+.stApp {{
+    background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(19,122,77,0.18), transparent 60%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(212,162,76,0.06), transparent 70%),
+        {COLORS['bg']};
+    background-attachment: fixed;
+}}
 
-/* ── Section labels ─────────────────────────────────── */
-.section-label {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 2.5px;
-    text-transform: uppercase;
-    color: #888;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #1A1A1A;
-    margin-bottom: 18px;
-    margin-top: 8px;
-}
+/* Hide default streamlit chrome */
+#MainMenu, footer, header {{ visibility: hidden; }}
+.block-container {{ padding-top: 1.5rem; padding-bottom: 4rem; max-width: 1280px; }}
 
-/* ── Progress bars ──────────────────────────────────── */
-.prog-track {
-    background: #1A1A1A;
-    border-radius: 8px;
-    height: 8px;
-    overflow: hidden;
-    position: relative;
-}
-.prog-fill {
-    height: 100%;
-    border-radius: 8px;
-    transition: width .8s cubic-bezier(0.4, 0, 0.2, 1);
-    background: linear-gradient(90deg, var(--c1, #00D4AA), var(--c2, #00B894));
-    position: relative;
-}
-.prog-fill::after {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-    animation: shimmer 2s infinite;
-}
-@keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-}
+/* Display heading font */
+h1, .display, .hero-title {{
+    font-family: 'Fraunces', Georgia, serif !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
+    color: {COLORS['cream']} !important;
+}}
 
-/* ── Data cards ─────────────────────────────────────── */
-.data-card {
-    background: #111;
-    border: 1px solid #1E1E1E;
-    border-radius: 16px;
-    padding: 20px 22px;
-    margin-bottom: 14px;
-    transition: border-color .2s ease;
-}
-.data-card:hover { border-color: #2A2A2A; }
+h2 {{
+    font-family: 'Fraunces', Georgia, serif !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.015em !important;
+    color: {COLORS['cream']} !important;
+}}
 
-/* ── TheStack-style protocol bar ────────────────────── */
-.stack-bar {
-    background: linear-gradient(135deg, #FFB800 0%, #FF8C00 100%);
-    padding: 16px 22px;
-    border-radius: 14px 14px 0 0;
-    font-weight: 800;
-    font-size: 16px;
-    color: #000;
-    letter-spacing: 0.3px;
-}
-.stack-card {
-    background: #0F0F0F;
-    border: 1px solid #1A1A1A;
-    border-top: none;
-    border-radius: 0 0 14px 14px;
-    padding: 16px 20px;
-    margin-bottom: 14px;
-}
-.dot {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    border: 2px solid #FFB800;
-    display: inline-block;
-    margin-right: 6px;
-    transition: all 0.2s ease;
-}
-.dot.done {
-    background: #FFB800;
-    box-shadow: 0 0 8px rgba(255,184,0,0.5);
-}
+h3, h4 {{
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 700 !important;
+    color: {COLORS['cream']} !important;
+}}
 
-/* ── Achievement chips ──────────────────────────────── */
-.achievement {
-    display: inline-block;
-    background: linear-gradient(135deg, rgba(255,184,0,0.12), rgba(255,140,0,0.08));
-    border: 1px solid rgba(255,184,0,0.3);
-    border-radius: 24px;
-    padding: 8px 16px;
-    margin: 4px 6px 4px 0;
-    font-size: 12px;
+p, span, label, div {{
+    color: {COLORS['text']};
+}}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {{
+    background: linear-gradient(180deg, {COLORS['bg_2']} 0%, {COLORS['bg']} 100%) !important;
+    border-right: 1px solid {COLORS['border']};
+}}
+section[data-testid="stSidebar"] > div {{ padding-top: 0.5rem; }}
+
+/* Sidebar collapse button always visible */
+[data-testid="stSidebarCollapseButton"], [data-testid="stSidebarCollapsedControl"] {{
+    opacity: 1 !important;
+    visibility: visible !important;
+    background: {COLORS['fairway_2']} !important;
+    border-radius: 10px !important;
+    z-index: 999999 !important;
+    box-shadow: 0 4px 14px rgba(19,122,77,0.4) !important;
+}}
+[data-testid="stSidebarCollapseButton"] svg,
+[data-testid="stSidebarCollapsedControl"] svg {{ color: {COLORS['cream']} !important; }}
+
+/* Buttons */
+.stButton > button {{
+    background: {COLORS['bg_3']};
+    color: {COLORS['cream']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 12px;
+    padding: 12px 18px;
     font-weight: 600;
-    color: #FFB800;
-}
-.achievement.locked {
-    background: #0F0F0F;
-    border-color: #222;
-    color: #444;
-}
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.01em;
+    transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
+}}
+.stButton > button:hover {{
+    background: {COLORS['border_2']};
+    border-color: {COLORS['fairway_2']};
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(19,122,77,0.2);
+}}
+.stButton > button:active {{ transform: translateY(0); }}
 
-/* ── Streak flame ───────────────────────────────────── */
-.streak-card {
-    background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
-    border-radius: 16px;
-    padding: 14px 20px;
-    color: #000;
-    font-weight: 800;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
+/* Primary button = filled fairway green with gold accent */
+.stButton > button[kind="primary"] {{
+    background: linear-gradient(135deg, {COLORS['fairway']} 0%, {COLORS['fairway_2']} 100%);
+    color: {COLORS['cream']};
+    border: 1px solid {COLORS['fairway_2']};
+    box-shadow:
+        0 8px 24px rgba(19,122,77,0.35),
+        inset 0 1px 0 rgba(255,255,255,0.1);
+}}
+.stButton > button[kind="primary"]:hover {{
+    background: linear-gradient(135deg, {COLORS['fairway_2']} 0%, #1A8F5C 100%);
+    box-shadow:
+        0 12px 30px rgba(19,122,77,0.5),
+        inset 0 1px 0 rgba(255,255,255,0.15);
+}}
 
-/* ── Streamlit metric override ──────────────────────── */
-[data-testid="metric-container"] {
-    background: linear-gradient(135deg, #111 0%, #0c0c0c 100%) !important;
-    border: 1px solid #1E1E1E !important;
-    border-radius: 16px !important;
-    padding: 18px !important;
-}
-[data-testid="stMetricValue"] {
-    color: #fff !important;
-    font-weight: 800 !important;
-    font-size: 28px !important;
-}
-[data-testid="stMetricLabel"] {
-    color: #888 !important;
-    font-size: 10px !important;
-    letter-spacing: 1.8px !important;
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {{
+    gap: 4px;
+    background: {COLORS['bg_2']};
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid {COLORS['border']};
+}}
+.stTabs [data-baseweb="tab"] {{
+    background: transparent;
+    border-radius: 10px;
+    padding: 10px 18px;
+    color: {COLORS['cream_dim']};
+    font-weight: 600;
+    font-size: 13px;
+    border: none;
+}}
+.stTabs [aria-selected="true"] {{
+    background: {COLORS['fairway']} !important;
+    color: {COLORS['cream']} !important;
+    box-shadow: 0 4px 12px rgba(19,122,77,0.3);
+}}
+
+/* Inputs */
+.stTextInput input, .stTextArea textarea, .stNumberInput input,
+.stSelectbox > div > div, [data-baseweb="select"] > div {{
+    background: {COLORS['bg_2']} !important;
+    border: 1px solid {COLORS['border']} !important;
+    border-radius: 10px !important;
+    color: {COLORS['cream']} !important;
+    font-family: 'Inter', sans-serif !important;
+}}
+.stTextInput input:focus, .stTextArea textarea:focus {{
+    border-color: {COLORS['fairway_2']} !important;
+    box-shadow: 0 0 0 3px rgba(19,122,77,0.15) !important;
+}}
+
+/* Metric */
+[data-testid="stMetricValue"] {{
+    font-family: 'Fraunces', Georgia, serif !important;
+    font-weight: 700 !important;
+    color: {COLORS['cream']} !important;
+    letter-spacing: -0.02em;
+}}
+[data-testid="stMetricLabel"] {{
+    color: {COLORS['cream_dim']} !important;
+    font-size: 11px !important;
+    letter-spacing: 0.12em !important;
     text-transform: uppercase !important;
     font-weight: 700 !important;
-}
-[data-testid="stMetricDelta"] {
-    color: #00D4AA !important;
-    font-weight: 600 !important;
-}
+}}
+[data-testid="stMetricDelta"] {{ font-weight: 700 !important; }}
 
-/* ── Buttons ────────────────────────────────────────── */
-.stButton button {
-    background: linear-gradient(135deg, #00D4AA 0%, #00B894 100%) !important;
-    color: #000 !important;
-    border: none !important;
-    border-radius: 12px !important;
-    font-weight: 700 !important;
-    font-size: 14px !important;
-    padding: 12px 24px !important;
-    letter-spacing: 0.3px !important;
-    transition: all 0.2s ease !important;
-    box-shadow: 0 4px 12px rgba(0,212,170,0.15) !important;
-}
-.stButton button:hover {
+/* Premium card */
+.gj-card {{
+    background: linear-gradient(165deg, {COLORS['bg_3']} 0%, {COLORS['bg_2']} 100%);
+    border: 1px solid {COLORS['border']};
+    border-radius: 18px;
+    padding: 24px;
+    box-shadow:
+        0 1px 0 rgba(255,255,255,0.04) inset,
+        0 20px 40px -20px rgba(0,0,0,0.5);
+    backdrop-filter: blur(20px);
+    transition: all 0.25s ease;
+}}
+.gj-card:hover {{
+    border-color: {COLORS['border_2']};
     transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(0,212,170,0.25) !important;
-}
-.stButton button:active { transform: translateY(0); }
+    box-shadow:
+        0 1px 0 rgba(255,255,255,0.06) inset,
+        0 24px 50px -20px rgba(0,0,0,0.6);
+}}
 
-/* ── Inputs ─────────────────────────────────────────── */
-.stTextInput input,
-.stNumberInput input,
-.stTextArea textarea,
-.stDateInput input,
-.stTimeInput input {
-    background: #0E0E0E !important;
-    border: 1px solid #252525 !important;
-    border-radius: 12px !important;
-    color: #fff !important;
-    font-family: 'Inter', sans-serif !important;
-    transition: border-color 0.2s ease !important;
-}
-.stTextInput input:focus,
-.stNumberInput input:focus,
-.stTextArea textarea:focus {
-    border-color: #00D4AA !important;
-    box-shadow: 0 0 0 3px rgba(0,212,170,0.1) !important;
-}
-.stSelectbox > div > div {
-    background: #0E0E0E !important;
-    border: 1px solid #252525 !important;
-    border-radius: 12px !important;
-    color: #fff !important;
-}
+.gj-card-flush {{
+    background: linear-gradient(165deg, {COLORS['bg_3']} 0%, {COLORS['bg_2']} 100%);
+    border: 1px solid {COLORS['border']};
+    border-radius: 18px;
+    padding: 24px;
+}}
 
-/* ── Tabs (premium look) ────────────────────────────── */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 4px;
-    background: #0A0A0A;
-    border-radius: 12px;
-    padding: 6px;
-    border: 1px solid #161616;
-}
-.stTabs [data-baseweb="tab"] {
-    background: transparent !important;
-    color: #777 !important;
-    border-radius: 8px !important;
-    padding: 10px 18px !important;
-    font-weight: 600 !important;
-    font-size: 13px !important;
-    border: none !important;
-}
-.stTabs [aria-selected="true"] {
-    background: #161616 !important;
-    color: #00D4AA !important;
-}
+/* Hero stat — huge serif number */
+.hero-stat {{
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 64px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: {COLORS['cream']};
+    background: linear-gradient(180deg, {COLORS['cream']} 0%, {COLORS['cream_dim']} 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}}
+.hero-stat-label {{
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: {COLORS['cream_dim']};
+    font-weight: 700;
+    margin-bottom: 8px;
+}}
 
-/* ── Tables ─────────────────────────────────────────── */
-.stDataFrame {
-    background: #0A0A0A !important;
-    border-radius: 12px !important;
-    border: 1px solid #1A1A1A !important;
-}
+/* Section header with gold underline */
+.section-header {{
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin: 28px 0 18px;
+}}
+.section-header h2 {{
+    margin: 0 !important;
+    font-size: 28px;
+}}
+.section-header .accent {{
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, {COLORS['flag']}, transparent);
+}}
+.section-header .eyebrow {{
+    color: {COLORS['flag']};
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-weight: 800;
+}}
 
-/* ── Scrollbar ──────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0A0A0A; }
-::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #00D4AA; }
+/* Pill / chip */
+.gj-pill {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: rgba(19,122,77,0.15);
+    border: 1px solid rgba(19,122,77,0.3);
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 700;
+    color: {COLORS['fairway_2']};
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}}
+.gj-pill-gold {{
+    background: rgba(212,162,76,0.12);
+    border-color: rgba(212,162,76,0.3);
+    color: {COLORS['flag']};
+}}
+.gj-pill-danger {{
+    background: rgba(212,87,76,0.12);
+    border-color: rgba(212,87,76,0.3);
+    color: {COLORS['danger']};
+}}
 
-/* ── Mobile responsive ──────────────────────────────── */
-@media (max-width: 768px) {
-    .block-container { padding: 1rem 0.75rem !important; }
-    .kpi-value { font-size: 32px; }
-    .kpi-card { padding: 16px 18px; }
-    .data-card { padding: 16px 18px; }
-}
-
-/* ── Page header ────────────────────────────────────── */
-.page-header {
-    margin-bottom: 24px;
+/* Pro-comparison gauge */
+.gauge-row {{
+    margin: 14px 0;
+}}
+.gauge-label {{
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 16px;
-}
-.page-eyebrow {
-    font-size: 11px;
-    color: #00D4AA;
-    letter-spacing: 2.5px;
-    text-transform: uppercase;
-    font-weight: 700;
-}
-.page-title {
-    font-size: 32px;
-    font-weight: 900;
-    margin-top: 6px;
-    letter-spacing: -1px;
-    line-height: 1.1;
-}
+    align-items: baseline;
+    margin-bottom: 6px;
+}}
+.gauge-label .name {{
+    font-size: 13px;
+    color: {COLORS['cream']};
+    font-weight: 600;
+}}
+.gauge-label .vals {{
+    font-size: 12px;
+    color: {COLORS['cream_dim']};
+    font-family: 'Fraunces', serif;
+}}
+.gauge-label .vals .you {{ color: {COLORS['flag']}; font-weight: 700; }}
+.gauge-label .vals .pro {{ color: {COLORS['cream_dim']}; }}
+.gauge-track {{
+    height: 8px;
+    background: {COLORS['bg_2']};
+    border-radius: 99px;
+    overflow: hidden;
+    border: 1px solid {COLORS['border']};
+    position: relative;
+}}
+.gauge-fill {{
+    height: 100%;
+    background: linear-gradient(90deg, {COLORS['fairway']}, {COLORS['fairway_2']});
+    border-radius: 99px;
+    box-shadow: 0 0 12px rgba(19,122,77,0.5);
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}}
+.gauge-fill.danger {{
+    background: linear-gradient(90deg, #8B3A33, {COLORS['danger']});
+    box-shadow: 0 0 12px rgba(212,87,76,0.4);
+}}
+.gauge-marker {{
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 14px;
+    background: {COLORS['flag']};
+    box-shadow: 0 0 8px {COLORS['flag']};
+}}
 
-/* ── Pill badges ────────────────────────────────────── */
-.pill {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-}
-.pill-green { background: rgba(0,212,170,0.15); color: #00D4AA; }
-.pill-amber { background: rgba(255,184,0,0.15); color: #FFB800; }
-.pill-red   { background: rgba(255,59,48,0.15);  color: #FF3B30; }
-.pill-blue  { background: rgba(74,158,255,0.15); color: #4A9EFF; }
-
-/* ── Insight card (Stroke-Saver) ─────────────────────── */
-.insight-card {
-    background: linear-gradient(135deg, rgba(0,212,170,0.06) 0%, rgba(0,184,148,0.02) 100%);
-    border: 1px solid rgba(0,212,170,0.2);
+/* Insight card — gradient border */
+.insight-card {{
+    position: relative;
+    background: {COLORS['bg_3']};
     border-radius: 16px;
     padding: 20px 22px;
-    margin-bottom: 12px;
-}
-.insight-strokes {
-    font-size: 32px;
-    font-weight: 900;
-    color: #00D4AA;
-    line-height: 1;
-}
+    margin: 10px 0;
+    border-left: 3px solid {COLORS['fairway_2']};
+}}
+.insight-card.gold {{ border-left-color: {COLORS['flag']}; }}
+.insight-card.danger {{ border-left-color: {COLORS['danger']}; }}
+.insight-card .icon {{
+    font-size: 22px;
+    margin-bottom: 6px;
+}}
+.insight-card .title {{
+    font-size: 14px;
+    font-weight: 800;
+    color: {COLORS['cream']};
+    margin-bottom: 4px;
+}}
+.insight-card .body {{
+    font-size: 13px;
+    color: {COLORS['cream_dim']};
+    line-height: 1.5;
+}}
 
-/* ── Quick-log floating button area ──────────────────── */
-.qlog {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 100;
-}
+/* Achievement badges */
+.ach-grid {{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+}}
+.ach-badge {{
+    background: {COLORS['bg_3']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 14px;
+    padding: 14px 12px;
+    text-align: center;
+    transition: all 0.2s;
+}}
+.ach-badge.unlocked {{
+    background: linear-gradient(160deg, rgba(212,162,76,0.12), {COLORS['bg_3']});
+    border-color: {COLORS['flag']};
+    box-shadow: 0 0 20px rgba(212,162,76,0.15);
+}}
+.ach-badge.locked {{ opacity: 0.4; }}
+.ach-badge .icon {{
+    font-size: 28px;
+    margin-bottom: 4px;
+}}
+.ach-badge .name {{
+    font-size: 11px;
+    font-weight: 700;
+    color: {COLORS['cream']};
+    line-height: 1.3;
+}}
+.ach-badge .desc {{
+    font-size: 10px;
+    color: {COLORS['cream_dim']};
+    margin-top: 3px;
+    line-height: 1.3;
+}}
+
+/* Streak badge */
+.streak-card {{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, rgba(212,162,76,0.18), rgba(212,162,76,0.05));
+    border: 1px solid rgba(212,162,76,0.3);
+    border-radius: 14px;
+    padding: 12px 14px;
+    color: {COLORS['flag']};
+}}
+
+/* Animated subtle pulse */
+@keyframes pulse-flag {{
+    0%, 100% {{ box-shadow: 0 0 0 0 rgba(212,162,76,0.4); }}
+    50% {{ box-shadow: 0 0 0 8px rgba(212,162,76,0); }}
+}}
+.live-dot {{
+    width: 8px; height: 8px;
+    border-radius: 99px;
+    background: {COLORS['flag']};
+    animation: pulse-flag 1.6s infinite;
+    display: inline-block;
+}}
+
+/* Caddy card */
+.caddy-card {{
+    background: linear-gradient(160deg, {COLORS['fairway']} 0%, #0a4a2e 100%);
+    border-radius: 22px;
+    padding: 28px;
+    color: {COLORS['cream']};
+    box-shadow:
+        0 1px 0 rgba(255,255,255,0.08) inset,
+        0 30px 60px -20px rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.08);
+}}
+.caddy-card .yard {{
+    font-family: 'Fraunces', serif;
+    font-size: 72px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: {COLORS['cream']};
+}}
+.caddy-card .yard-unit {{
+    font-size: 24px;
+    color: rgba(245,239,224,0.6);
+    margin-left: 6px;
+}}
+.caddy-card .rec {{
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(212,162,76,0.4);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-top: 18px;
+    backdrop-filter: blur(20px);
+}}
+.caddy-card .rec .club {{
+    font-family: 'Fraunces', serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: {COLORS['flag']};
+}}
+
+/* Drill card */
+.drill-card {{
+    background: linear-gradient(160deg, {COLORS['bg_3']}, {COLORS['bg_2']});
+    border: 1px solid {COLORS['border']};
+    border-radius: 18px;
+    overflow: hidden;
+    transition: all 0.25s;
+}}
+.drill-card:hover {{
+    border-color: {COLORS['fairway_2']};
+    transform: translateY(-3px);
+}}
+.drill-card .thumb {{
+    height: 140px;
+    background: linear-gradient(135deg, {COLORS['fairway']}, {COLORS['bg_3']});
+    display: flex; align-items: center; justify-content: center;
+    font-size: 50px;
+}}
+
+/* Scrollbar */
+::-webkit-scrollbar {{ width: 10px; height: 10px; }}
+::-webkit-scrollbar-track {{ background: {COLORS['bg']}; }}
+::-webkit-scrollbar-thumb {{ background: {COLORS['border_2']}; border-radius: 99px; }}
+::-webkit-scrollbar-thumb:hover {{ background: {COLORS['fairway_2']}; }}
+
+/* Hide scrollbar in some elements */
+.stMarkdown {{ color: {COLORS['text']}; }}
+
+/* Slider */
+.stSlider [data-baseweb="slider"] > div:nth-child(2) > div {{
+    background: linear-gradient(90deg, {COLORS['fairway']}, {COLORS['fairway_2']}) !important;
+}}
+
+/* Expander */
+.stExpander {{
+    background: {COLORS['bg_2']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 14px;
+}}
+
+/* File uploader */
+[data-testid="stFileUploader"] section {{
+    background: {COLORS['bg_2']};
+    border: 2px dashed {COLORS['border_2']};
+    border-radius: 14px;
+}}
+[data-testid="stFileUploader"] section:hover {{
+    border-color: {COLORS['fairway_2']};
+    background: rgba(19,122,77,0.05);
+}}
+
+/* Success/info/error/warning boxes */
+.stAlert {{
+    background: {COLORS['bg_3']} !important;
+    border-radius: 12px !important;
+    border: 1px solid {COLORS['border']} !important;
+}}
 </style>
 """

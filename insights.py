@@ -1,217 +1,287 @@
-"""Stroke-Saver Engine — analyzes Joel's data and ranks fixes by stroke impact."""
-import pandas as pd
-import numpy as np
+"""Intelligent insights — specific, voice-matched to user examples."""
 from cloud_storage import load_data
+from datetime import datetime, timedelta
+from collections import Counter, defaultdict
 
-# PGA Tour benchmarks (avg amateur 15 hcp comparisons)
-TOUR_BENCHMARKS = {
-    "D":  {"carry": 296, "ball": 167, "smash": 1.49},
-    "3W": {"carry": 243, "ball": 158, "smash": 1.48},
-    "5W": {"carry": 230, "ball": 153, "smash": 1.47},
-    "5H": {"carry": 215, "ball": 146, "smash": 1.45},
-    "7i": {"carry": 172, "ball": 130, "smash": 1.33},
-    "9i": {"carry": 148, "ball": 119, "smash": 1.28},
-    "PW": {"carry": 136, "ball": 112, "smash": 1.23},
-    "GW": {"carry": 110, "ball": 102, "smash": 1.18},
-    "SW": {"carry": 92,  "ball": 92,  "smash": 1.13},
-    "LW": {"carry": 70,  "ball": 80,  "smash": 1.05},
+# PGA Tour benchmarks (2024 season averages)
+TOUR_CARRY = {
+    "Driver": 296, "3W": 264, "5H": 235, "5i": 200, "6i": 188, "7i": 176,
+    "8i": 164, "9i": 152, "PW": 138, "GW": 124, "SW": 105, "LW": 85,
+}
+TOUR_BENCH = {
+    "putts_per_round": 28.7, "gir_pct": 65, "fairway_pct": 60,
+    "scrambling_pct": 60, "score_avg": 71.2,
 }
 
 
-def stroke_saver_plan() -> list:
-    """Returns ranked list of stroke-saving recommendations.
-
-    Each item: {area, strokes_saved, current, target, drill, why}
-    """
-    data = load_data()
-    rounds = data.get("rounds", [])
-    plan = []
-
-    if not rounds:
-        return plan
-
-    df = pd.DataFrame(rounds)
-    for col in ["score", "putts", "gir", "fir", "par"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # Use only par-70+ rounds for fair comparison (skip par-3 courses)
-    full = df[df.get("par", 70) >= 65].copy()
-    if len(full) == 0:
-        full = df.copy()
-
-    avg_score = full["score"].mean() if "score" in full else None
-    avg_putts = full["putts"].mean() if "putts" in full else None
-    avg_gir = full["gir"].mean() if "gir" in full else None
-    avg_fir = full["fir"].mean() if "fir" in full else None
-
-    # 1. Putting
-    if avg_putts and avg_putts > 30:
-        save = round((avg_putts - 30) * 0.8, 1)
-        plan.append({
-            "area": "Putting",
-            "strokes_saved": save,
-            "current": f"{avg_putts:.1f} putts/round",
-            "target": "30 putts/round",
-            "drill": "Lag drill — 3 balls from 30/40/50 ft, twice per practice. Gate drill at 4 ft.",
-            "why": f"You average {avg_putts:.1f} putts. Tour avg is 29; bogey golfers cluster at 32+. Each putt saved is a stroke.",
-            "icon": "🎯",
-            "color": "#4A9EFF",
-        })
-
-    # 2. GIR (approach shots)
-    if avg_gir is not None and avg_gir < 7:
-        # full course = 18 greens
-        gap = max(0, 7 - avg_gir)
-        save = round(gap * 0.6, 1)
-        plan.append({
-            "area": "Approach Shots (GIR)",
-            "strokes_saved": save,
-            "current": f"{avg_gir:.1f} of 18 greens",
-            "target": "7 GIR/round",
-            "drill": "100-shot wedge ladder — 75/85/95/105 yds, 25 each. Track make %.",
-            "why": f"You hit {avg_gir:.1f} GIR/round. Players who break 80 average 7+. More GIR = fewer up-and-downs needed.",
-            "icon": "🎯",
-            "color": "#00D4AA",
-        })
-
-    # 3. Fairways / Driver accuracy
-    if avg_fir is not None and avg_fir < 7:
-        gap = max(0, 7 - avg_fir)
-        save = round(gap * 0.4, 1)
-        plan.append({
-            "area": "Driver Accuracy",
-            "strokes_saved": save,
-            "current": f"{avg_fir:.1f} fairways hit",
-            "target": "7+ FIR/round",
-            "drill": "Headcover under right armpit — 20 half-swings. Gate drill with two tees outside the clubhead.",
-            "why": f"You hit {avg_fir:.1f} fairways. Each missed fairway costs ~0.3 strokes on average.",
-            "icon": "🏌️",
-            "color": "#FFB800",
-        })
-
-    # 4. Speed gain → distance
-    speed = data.get("speed", [])
-    if speed:
-        latest = speed[-1].get("driver_speed", 97)
-        if latest < 105:
-            gap = 105 - latest
-            save = round(gap * 0.08, 1)  # ~0.5 stroke per 6 mph gain
-            plan.append({
-                "area": "Driver Speed",
-                "strokes_saved": save,
-                "current": f"{latest} mph",
-                "target": "105 mph",
-                "drill": "TheStack Foundation L1 → Build L2, 3x/week. Overspeed sets with 20g club.",
-                "why": f"You're at {latest} mph. Each +1 mph = ~2.5 yds carry. 8 mph more puts you in 270+ range consistently.",
-                "icon": "⚡",
-                "color": "#FF6B35",
-            })
-
-    plan.sort(key=lambda x: x["strokes_saved"], reverse=True)
-    return plan
-
-
-def total_strokes_to_save() -> float:
-    return round(sum(p["strokes_saved"] for p in stroke_saver_plan()), 1)
-
-
-def gap_to_break_80() -> dict:
-    """How close are we to breaking 80 consistently?"""
-    data = load_data()
-    rounds = [r for r in data.get("rounds", []) if r.get("par", 70) >= 65]
-    if len(rounds) < 3:
-        return {"avg": None, "gap": None, "trend": None, "recent": []}
-    df = pd.DataFrame(rounds)
-    df["score"] = pd.to_numeric(df["score"], errors="coerce")
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df = df.dropna(subset=["score", "date"]).sort_values("date")
-    recent5 = df.tail(5)
-    avg5 = recent5["score"].mean()
-    under_80 = (recent5["score"] < 80).sum()
-    return {
-        "avg": round(avg5, 1),
-        "gap": round(avg5 - 80, 1),
-        "under_80_count": int(under_80),
-        "of_last": len(recent5),
-        "recent": recent5["score"].tolist(),
-    }
-
-
-def miss_pattern() -> dict:
-    """Analyze practice shots for left/right miss tendency."""
-    data = load_data()
-    practice = data.get("practice", [])
-    if not practice:
-        return {"bias": None, "magnitude": 0, "summary": "Log practice shots to detect miss patterns."}
-    df = pd.DataFrame(practice)
-    if "side" not in df.columns:
-        return {"bias": None, "magnitude": 0, "summary": "Need shot side data."}
-    df["side"] = pd.to_numeric(df["side"], errors="coerce")
-    df = df.dropna(subset=["side"])
-    if len(df) == 0:
-        return {"bias": None, "magnitude": 0, "summary": "No side data yet."}
-    avg = df["side"].mean()
-    if abs(avg) < 1.5:
-        return {"bias": "balanced", "magnitude": abs(avg), "summary": "Dispersion is balanced — no strong miss bias detected."}
-    if avg > 0:
-        return {"bias": "right",
-                "magnitude": round(avg, 1),
-                "summary": f"Average miss is {avg:.1f} yds RIGHT — likely an out-to-in path or open face. Try the gate drill and check grip strength."}
-    return {"bias": "left",
-            "magnitude": round(abs(avg), 1),
-            "summary": f"Average miss is {abs(avg):.1f} yds LEFT — likely in-to-out with a closed face or release timing. Drill: feet-together half swings."}
-
-
-def practice_streak() -> int:
-    """Count consecutive days with logged practice / speed / round activity."""
-    data = load_data()
-    dates = set()
-    for src in ["practice", "speed", "rounds"]:
-        for item in data.get(src, []):
-            d = str(item.get("date", ""))[:10]
-            if d:
-                dates.add(d)
-    if not dates:
-        return 0
-    sorted_dates = sorted(dates, reverse=True)
-    from datetime import datetime as _dt, timedelta
-    today = _dt.now().date()
+def practice_streak():
+    d = load_data()
+    shots = d.get("practice_shots", []) or []
+    if not shots: return 0
+    dates = sorted({s.get("date", "")[:10] for s in shots if s.get("date")}, reverse=True)
+    today = datetime.now().date()
     streak = 0
-    cursor = today
-    sset = set(sorted_dates)
-    while cursor.isoformat() in sset or (cursor == today):
-        if cursor.isoformat() in sset:
+    for i, ds in enumerate(dates):
+        try:
+            dt = datetime.strptime(ds, "%Y-%m-%d").date()
+        except:
+            continue
+        if (today - dt).days == i:
             streak += 1
-        elif cursor != today:
-            break
-        cursor -= timedelta(days=1)
-        if streak > 365:
+        else:
             break
     return streak
 
 
-def club_vs_tour() -> list:
-    """Compare practice carry distances vs tour benchmarks."""
-    data = load_data()
-    practice = data.get("practice", [])
-    if not practice:
+def carry_vs_tour(club, your_carry):
+    """Compare your carry to PGA Tour avg. Returns dict with delta + verdict."""
+    tour = TOUR_CARRY.get(club)
+    if not tour or not your_carry:
+        return None
+    delta = your_carry - tour
+    pct = (your_carry / tour) * 100
+    if delta >= -5:
+        verdict = "Pro level"
+    elif delta >= -20:
+        verdict = "Above amateur"
+    elif delta >= -40:
+        verdict = "Typical amateur"
+    else:
+        verdict = "Room to grow"
+    return {"tour": tour, "you": your_carry, "delta": delta, "pct": pct, "verdict": verdict}
+
+
+def miss_pattern(club="7i"):
+    """Returns user's miss tendency for a club: 'right' / 'left' / 'short' / 'long' / None."""
+    d = load_data()
+    shots = [s for s in (d.get("practice_shots", []) or []) if s.get("club") == club]
+    shots = [s for s in shots if s.get("offline_y") is not None]
+    if len(shots) < 5:
+        return None
+    rights = sum(1 for s in shots if s.get("offline_y", 0) > 5)
+    lefts = sum(1 for s in shots if s.get("offline_y", 0) < -5)
+    total = len(shots)
+    if rights / total >= 0.6:
+        return {"side": "right", "pct": int(100 * rights / total), "n": total}
+    if lefts / total >= 0.6:
+        return {"side": "left", "pct": int(100 * lefts / total), "n": total}
+    return None
+
+
+def course_history(course_name):
+    """Stats on user's history at a course."""
+    d = load_data()
+    rounds = [r for r in (d.get("rounds", []) or []) if course_name.lower() in (r.get("course", "").lower())]
+    if not rounds:
+        return None
+    scores = [r.get("score") for r in rounds if r.get("score")]
+    return {
+        "plays": len(rounds),
+        "best": min(scores) if scores else None,
+        "avg": round(sum(scores) / len(scores), 1) if scores else None,
+        "last": scores[-1] if scores else None,
+    }
+
+
+def hole_weakness(course_name):
+    """Find the hole(s) where user struggles most. Returns top 1-3 weak holes."""
+    d = load_data()
+    rounds = [r for r in (d.get("rounds", []) or []) if course_name.lower() in (r.get("course", "").lower())]
+    hole_diffs = defaultdict(list)
+    for r in rounds:
+        for hole in (r.get("holes", []) or []):
+            par = hole.get("par")
+            score = hole.get("score")
+            num = hole.get("num")
+            if par and score and num:
+                hole_diffs[num].append(score - par)
+    if not hole_diffs:
         return []
-    df = pd.DataFrame(practice)
-    if "club" not in df.columns or "carry" not in df.columns:
-        return []
-    df["carry"] = pd.to_numeric(df["carry"], errors="coerce")
-    summary = df.groupby("club")["carry"].mean().round(1).reset_index()
+    weak = []
+    for num, diffs in hole_diffs.items():
+        if len(diffs) >= 2:  # need 2+ plays to be meaningful
+            weak.append({"hole": num, "avg_over_par": round(sum(diffs) / len(diffs), 1), "plays": len(diffs)})
+    weak.sort(key=lambda x: -x["avg_over_par"])
+    return weak[:3]
+
+
+def par_type_weakness(course_name=None):
+    """Identify if user struggles on par 3s, 4s, or 5s most."""
+    d = load_data()
+    rounds = d.get("rounds", []) or []
+    if course_name:
+        rounds = [r for r in rounds if course_name.lower() in (r.get("course", "").lower())]
+    by_par = defaultdict(list)
+    for r in rounds:
+        for hole in (r.get("holes", []) or []):
+            par = hole.get("par")
+            score = hole.get("score")
+            if par and score:
+                by_par[par].append(score - par)
+    return {p: round(sum(v) / len(v), 2) for p, v in by_par.items() if v}
+
+
+def suggested_club(yards, plays_like=None):
+    """Given target yards, suggest user's club using their actual carries."""
+    d = load_data()
+    shots = d.get("practice_shots", []) or []
+    target = plays_like or yards
+    by_club = defaultdict(list)
+    for s in shots:
+        if s.get("club") and s.get("carry"):
+            by_club[s["club"]].append(s["carry"])
+    avg_by_club = {c: sum(v) / len(v) for c, v in by_club.items() if len(v) >= 3}
+    if not avg_by_club:
+        # fallback to bag defaults
+        avg_by_club = {
+            "Driver": 240, "3W": 215, "5H": 195, "5i": 178, "6i": 167,
+            "7i": 155, "8i": 142, "9i": 130, "PW": 110, "GW": 95, "SW": 80, "LW": 65,
+        }
+    # find club whose avg is closest but slightly over target (smooth swing)
+    best = None
+    best_diff = 9999
+    for club, avg in avg_by_club.items():
+        diff = avg - target  # positive = club goes longer than target
+        if 0 <= diff < best_diff:
+            best = (club, avg, diff)
+            best_diff = diff
+    if best is None:
+        # all clubs short — pick longest
+        club, avg = max(avg_by_club.items(), key=lambda x: x[1])
+        return {"club": club, "your_carry": int(avg), "target": int(target), "warning": "longer than your bag"}
+    return {"club": best[0], "your_carry": int(best[1]), "target": int(target), "warning": None}
+
+
+def plays_like(yards, wind_mph=0, wind_dir="head", elevation_ft=0, temp_f=70):
+    """Calculate playing yardage with wind, elevation, temp."""
+    adj = yards
+    # Wind: 1% per 1 mph head; 0.5% per 1 mph tail; 0.3% per 1 mph cross
+    if wind_dir == "head":
+        adj += yards * (wind_mph / 100)
+    elif wind_dir == "tail":
+        adj -= yards * (wind_mph / 200)
+    # Elevation: 2 yards per 10 ft
+    adj -= elevation_ft / 5
+    # Temp: 2 yards per 10°F deviation from 70
+    adj -= (temp_f - 70) / 5
+    return round(adj)
+
+
+def smart_insights():
+    """Generate the rotating list of intelligent insights for the dashboard."""
+    d = load_data()
     out = []
-    for _, row in summary.iterrows():
-        club = row["club"]
-        bench = TOUR_BENCHMARKS.get(club, {}).get("carry")
-        if bench:
+    profile = d.get("profile", {})
+    rounds = d.get("rounds", []) or []
+    shots = d.get("practice_shots", []) or []
+
+    # === Carry vs Tour for 7i (most data usually) ===
+    sevens = [s for s in shots if s.get("club") == "7i" and s.get("carry")]
+    if sevens:
+        avg7 = round(sum(s["carry"] for s in sevens[-20:]) / len(sevens[-20:]))
+        cmp = carry_vs_tour("7i", avg7)
+        if cmp:
             out.append({
-                "club": club,
-                "your_carry": row["carry"],
-                "tour_carry": bench,
-                "gap": round(row["carry"] - bench, 1),
-                "pct_of_tour": round(row["carry"] / bench * 100, 0),
+                "icon": "🎯",
+                "title": f"You hit 7i {avg7} yards",
+                "body": f"PGA Tour avg with 7-iron: {cmp['tour']} yds. You're at {cmp['pct']:.0f}% of Tour. {cmp['verdict']}.",
+                "tone": "fairway" if cmp["delta"] >= -20 else "gold",
             })
+
+    # === Miss pattern ===
+    miss = miss_pattern("7i")
+    if miss:
+        verb_drill = "Cure The Slice — In-To-Out Path" if miss["side"] == "right" else "Square Path — Hook Fix"
+        out.append({
+            "icon": "📐",
+            "title": f"{miss['pct']}% of your 7i misses go {miss['side']}",
+            "body": f"That's likely an out-to-in path. Recommended drill: {verb_drill}.",
+            "tone": "danger",
+            "drill_link": "driver_path" if miss["side"] == "right" else None,
+        })
+
+    # === Course mastery ===
+    home = profile.get("home_course", "El Cariso")
+    hist = course_history(home)
+    if hist and hist["plays"] >= 3:
+        weak_par = par_type_weakness(home)
+        weakest = max(weak_par.items(), key=lambda x: x[1]) if weak_par else None
+        weak_text = f"Weakness: Par {weakest[0]}s (avg +{weakest[1]} vs par)." if weakest and weakest[1] > 0.5 else "Solid all-around."
+        out.append({
+            "icon": "🏠",
+            "title": f"You've played {home} {hist['plays']} times",
+            "body": f"Best score: {hist['best']}. Average: {hist['avg']}. {weak_text}",
+            "tone": "fairway",
+        })
+        # Hole-specific weakness
+        weak = hole_weakness(home)
+        if weak:
+            top = weak[0]
+            if top["avg_over_par"] >= 1:
+                out.append({
+                    "icon": "⚠️",
+                    "title": f"You're struggling on hole {top['hole']} at {home}",
+                    "body": f"Average +{top['avg_over_par']} vs par over {top['plays']} plays. Focus practice on the shot that hole demands.",
+                    "tone": "danger",
+                })
+
+    # === Putting ===
+    putts = [r.get("putts") for r in rounds if r.get("putts")]
+    if putts:
+        avg_putts = round(sum(putts[-5:]) / len(putts[-5:]), 1)
+        if avg_putts > TOUR_BENCH["putts_per_round"]:
+            extra = round(avg_putts - TOUR_BENCH["putts_per_round"], 1)
+            out.append({
+                "icon": "⛳",
+                "title": f"You average {avg_putts} putts per round",
+                "body": f"Tour avg: {TOUR_BENCH['putts_per_round']}. You're losing ~{extra} strokes/round on the green. Try the Gate Drill.",
+                "tone": "gold",
+                "drill_link": "putt_gate",
+            })
+
+    # === Streak / consistency ===
+    streak = practice_streak()
+    if streak >= 3:
+        out.append({
+            "icon": "🔥",
+            "title": f"{streak}-day practice streak",
+            "body": "Consistency builds skill. Keep the chain alive — even 10 minutes counts.",
+            "tone": "gold",
+        })
+
+    # === Score trend ===
+    if len(rounds) >= 3:
+        recent = [r.get("score") for r in rounds[-3:] if r.get("score")]
+        prev = [r.get("score") for r in rounds[-6:-3] if r.get("score")]
+        if recent and prev:
+            r_avg = sum(recent) / len(recent)
+            p_avg = sum(prev) / len(prev)
+            delta = r_avg - p_avg
+            if delta < -1.5:
+                out.append({
+                    "icon": "📈",
+                    "title": f"Trending down {abs(delta):.1f} strokes",
+                    "body": f"Last 3 rounds avg {r_avg:.1f} vs prior 3 at {p_avg:.1f}. Whatever you're doing, keep doing it.",
+                    "tone": "fairway",
+                })
+            elif delta > 1.5:
+                out.append({
+                    "icon": "📉",
+                    "title": f"Trending up {delta:.1f} strokes",
+                    "body": f"Last 3 rounds avg {r_avg:.1f} vs prior 3 at {p_avg:.1f}. Time for a coach session — what changed?",
+                    "tone": "danger",
+                })
+
+    # === Goal: Break 80 ===
+    if rounds:
+        best = min(r.get("score", 999) for r in rounds)
+        if best >= 80:
+            gap = best - 79
+            out.append({
+                "icon": "🏆",
+                "title": f"Break 80 goal — {gap} strokes to go",
+                "body": f"Your best is {best}. Putting + scrambling are usually the fastest path. Audit short game next session.",
+                "tone": "gold",
+            })
+
     return out

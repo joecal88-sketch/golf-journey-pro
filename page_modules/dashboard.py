@@ -1,265 +1,274 @@
-"""Command Center — the dashboard."""
+"""Command Center — hero stats, smart insights, pro comparison, stroke-saver."""
 import streamlit as st
-from datetime import datetime
 from cloud_storage import load_data
-from weekly_summary import get_summary
-from insights import (
-    stroke_saver_plan,
-    total_strokes_to_save,
-    gap_to_break_80,
-    practice_streak,
-)
-from achievements import all_with_status
+from styles import COLORS
+from insights import smart_insights, TOUR_BENCH, TOUR_CARRY
+from drills import get_by_id
 
-CLUBS = [
-    {"label": "D",  "name": "Mizuno ST-Z 230 Driver",       "color": "#00D4AA", "carry": 221, "speed": 97, "ball": 138, "smash": 1.42, "apex": 68, "path": -3.7},
-    {"label": "3W", "name": "Callaway Rogue ST 3-Wood",     "color": "#4A9EFF", "carry": 195, "speed": 87, "ball": 120, "smash": 1.38, "apex": 55, "path": -2.5},
-    {"label": "5H", "name": "Callaway Edge 5-Hybrid",       "color": "#9B59B6", "carry": 175, "speed": 82, "ball": 112, "smash": 1.37, "apex": 58, "path": -2.1},
-    {"label": "5i", "name": "Mizuno JPX925 HM 5-Iron",      "color": "#E67E22", "carry": 178, "speed": 81, "ball": 114, "smash": 1.40, "apex": 60, "path": -3.6},
-    {"label": "6i", "name": "Mizuno JPX925 HM 6-Iron",      "color": "#D35400", "carry": 167, "speed": 79, "ball": 111, "smash": 1.40, "apex": 61, "path": -3.9},
-    {"label": "7i", "name": "Mizuno JPX925 HM 7-Iron",      "color": "#F39C12", "carry": 155, "speed": 78, "ball": 108, "smash": 1.38, "apex": 62, "path": -5.1},
-    {"label": "8i", "name": "Mizuno JPX925 HM 8-Iron",      "color": "#E22E2E", "carry": 142, "speed": 77, "ball": 104, "smash": 1.35, "apex": 64, "path": -4.9},
-    {"label": "9i", "name": "Mizuno JPX925 HM 9-Iron",      "color": "#E74C3C", "carry": 130, "speed": 76, "ball": 100, "smash": 1.32, "apex": 65, "path": -4.8},
-    {"label": "PW", "name": "Mizuno JPX925 HM Pitching Wedge", "color": "#1ABC9C", "carry": 110, "speed": 74, "ball": 94,  "smash": 1.27, "apex": 60, "path": -4.5},
-    {"label": "GW", "name": "Kirkland 52° Gap Wedge",       "color": "#3498DB", "carry": 95,  "speed": 70, "ball": 85,  "smash": 1.21, "apex": 55, "path": -1.2},
-    {"label": "SW", "name": "Kirkland 56° Sand Wedge",      "color": "#95A5A6", "carry": 80,  "speed": 66, "ball": 76,  "smash": 1.15, "apex": 50, "path": -0.8},
-    {"label": "LW", "name": "Kirkland 60° Lob Wedge",       "color": "#BDC3C7", "carry": 60,  "speed": 60, "ball": 65,  "smash": 1.08, "apex": 42, "path": -0.5},
-    {"label": "PT", "name": "TaylorMade Spider Putter",     "color": "#C0392B", "carry": 0,   "speed": 0,  "ball": 0,   "smash": 0,    "apex": 0,  "path": 0},
-]
+
+def _gauge(name: str, you, pro, lower_is_better=False, unit=""):
+    """Render a comparison gauge."""
+    if you is None or pro is None:
+        return ""
+    pct = (pro / you) * 100 if lower_is_better else (you / pro) * 100
+    pct = max(0, min(115, pct))
+    color = "fairway" if pct >= 90 else ("gold" if pct >= 70 else "")
+    fill_class = "" if pct >= 80 else "danger"
+    return (
+        f'<div class="gauge-row">'
+        f'<div class="gauge-label">'
+        f'<span class="name">{name}</span>'
+        f'<span class="vals"><span class="you">{you}{unit}</span> · <span class="pro">Tour {pro}{unit}</span></span>'
+        f'</div>'
+        f'<div class="gauge-track">'
+        f'<div class="gauge-fill {fill_class}" style="width:{pct}%"></div>'
+        f'</div>'
+        f'</div>'
+    )
+
+
+def _hero_block(label, value, unit="", sub=""):
+    return f"""
+    <div class="gj-card-flush" style="text-align:center;padding:30px 20px;">
+        <div class="hero-stat-label">{label}</div>
+        <div class="hero-stat">{value}<span style="font-size:32px;color:{COLORS['cream_dim']};">{unit}</span></div>
+        <div style="color:{COLORS['cream_dim']};font-size:12px;margin-top:6px;">{sub}</div>
+    </div>
+    """
 
 
 def render():
-    summary = get_summary()
-    today_str = datetime.now().strftime("%A, %B %d")
+    data = load_data()
+    profile = data.get("profile", {})
+    rounds = data.get("rounds", []) or []
+    shots = data.get("practice_shots", []) or []
 
-    # ── Page Header ──
+    # Hero header
     st.markdown(
         f"""
-        <div class="page-header">
-            <div>
-                <div class="page-eyebrow">{today_str} · BURBANK, CA</div>
-                <div class="page-title">Command Center</div>
-            </div>
-            <div style="background:linear-gradient(135deg,#111,#0c0c0c);border:1px solid #1E1E1E;border-radius:16px;padding:14px 22px;text-align:right;min-width:160px;">
-                <div style="font-size:9px;color:#888;letter-spacing:2.5px;text-transform:uppercase;font-weight:700;">GHIN HANDICAP</div>
-                <div style="font-size:42px;font-weight:900;color:#00D4AA;line-height:1;margin-top:4px;letter-spacing:-1.5px;">31.3</div>
-            </div>
+        <div style="margin:8px 0 24px;">
+            <div style="font-size:11px;color:{COLORS['flag']};letter-spacing:0.25em;text-transform:uppercase;font-weight:800;">⛳ COMMAND CENTER</div>
+            <h1 style="margin:6px 0 4px;font-size:42px;">Welcome back, {profile.get('name', 'Joel').split()[0]}.</h1>
+            <div style="color:{COLORS['cream_dim']};font-size:15px;">Your pursuit of breaking 80 — by the numbers.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # ── KPI Row ──
-    avg_score = summary.get("avg_score") or 79.8
-    rounds_count = summary.get("rounds_count") or 0
-    espeed = int(summary.get("latest_espeed") or 97)
-    practice_count = summary.get("practice_count") or 0
+    # === Hero stats row ===
+    if rounds:
+        scores = [r.get("score") for r in rounds if r.get("score")]
+        best = min(scores) if scores else "—"
+        avg = round(sum(scores) / len(scores), 1) if scores else "—"
+        last = scores[-1] if scores else "—"
+    else:
+        best = avg = last = "—"
 
     c1, c2, c3, c4 = st.columns(4)
-    kpis = [
-        (c1, "AVG SCORE", str(avg_score), "", f"{rounds_count} regulation rounds", "#00D4AA"),
-        (c2, "DRIVER eSPEED", str(espeed), "mph", "Goal: 105 mph (+8)", "#FFB800"),
-        (c3, "DIST POTENTIAL", "270", "yds", "Goal: 300 yds (+30)", "#FF6B35"),
-        (c4, "PRACTICE SHOTS", str(practice_count), "", "Logged via Rapsodo", "#4A9EFF"),
-    ]
-    for col, lbl, val, unit, sub, color in kpis:
-        with col:
-            st.markdown(
-                f"""
-                <div class="kpi-card" style="--accent:{color};">
-                    <div class="kpi-label">{lbl}</div>
-                    <div style="line-height:1;"><span class="kpi-value">{val}</span><span class="kpi-unit">{unit}</span></div>
-                    <div class="kpi-sub" style="color:{color};">{sub}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    with c1: st.markdown(_hero_block("HANDICAP", profile.get("ghin", "—"), "", "GHIN index"), unsafe_allow_html=True)
+    with c2: st.markdown(_hero_block("BEST", best, "", "career low"), unsafe_allow_html=True)
+    with c3: st.markdown(_hero_block("LAST ROUND", last, "", f"{rounds[-1].get('course', '')[:14]}" if rounds else ""), unsafe_allow_html=True)
+    with c4: st.markdown(_hero_block("ROUND AVG", avg, "", f"over {len(rounds)} rounds"), unsafe_allow_html=True)
 
-    st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-    # ── Two-column layout ──
-    left, right = st.columns([1.3, 1])
+    # === Goal: Break 80 progress ===
+    gap = (best - 79) if isinstance(best, (int, float)) else None
+    progress = max(0, min(100, 100 - gap * 5)) if gap is not None and gap >= 0 else 100
+    st.markdown(
+        f"""
+        <div class="gj-card-flush" style="background:linear-gradient(160deg,rgba(212,162,76,0.10),{COLORS['bg_3']});border-color:{COLORS['flag']}40;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;">
+            <div>
+              <span class="gj-pill gj-pill-gold">🏆 PRIMARY GOAL</span>
+              <h2 style="margin:8px 0 0;font-size:24px;">Break 80 Consistently</h2>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-family:'Fraunces',serif;font-size:36px;font-weight:700;color:{COLORS['flag']};line-height:1;">{gap if gap is not None and gap >= 0 else 0}</div>
+              <div style="font-size:11px;color:{COLORS['cream_dim']};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;">strokes to go</div>
+            </div>
+          </div>
+          <div class="gauge-track" style="height:10px;">
+            <div class="gauge-fill" style="width:{progress}%;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:{COLORS['cream_dim']};">
+            <span>Best: {best}</span>
+            <span>Target: 79</span>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    with left:
-        # GAP-TO-BREAK-80 card
-        gap = gap_to_break_80()
-        if gap.get("avg") is not None:
-            avg5 = gap["avg"]
-            gap_val = gap["gap"]
-            under = gap["under_80_count"]
-            of_last = gap["of_last"]
-            color = "#00D4AA" if gap_val <= 0 else ("#FFB800" if gap_val < 3 else "#FF6B35")
-            label = "ACHIEVED" if gap_val <= 0 else f"{abs(gap_val)} STROKES AWAY"
-            st.markdown(
-                f"""
-                <div class="data-card" style="border-left:3px solid {color};">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
-                        <div>
-                            <div style="font-size:10px;color:#888;letter-spacing:2px;text-transform:uppercase;font-weight:700;">BREAK 80 GOAL</div>
-                            <div style="font-size:24px;font-weight:900;margin-top:6px;">{label}</div>
-                            <div style="font-size:13px;color:#999;margin-top:6px;">Last 5 rounds avg: <strong style="color:#fff;">{avg5}</strong> · {under} of {of_last} under 80</div>
-                        </div>
-                        <div style="text-align:right;">
-                            <div style="font-size:42px;font-weight:900;color:{color};line-height:1;">{avg5}</div>
-                            <div style="font-size:11px;color:#888;margin-top:4px;">vs target 80</div>
-                        </div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        # Stroke-Saver Plan
-        plan = stroke_saver_plan()
-        total_save = total_strokes_to_save()
-        if plan:
-            st.markdown(
-                f"""
-                <div class="section-label" style="margin-top:20px;">
-                    🎯 STROKE-SAVER PLAN · {total_save} STROKES TO UNLOCK
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            for item in plan[:3]:
+    # === Smart insights ===
+    insights_list = smart_insights()
+    if insights_list:
+        st.markdown(
+            f"""
+            <div class="section-header">
+                <span class="eyebrow">Intelligence</span>
+                <h2>What your data is telling us</h2>
+                <span class="accent"></span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        cols = st.columns(2)
+        for i, ins in enumerate(insights_list[:6]):
+            with cols[i % 2]:
+                tone_class = ins.get("tone", "")
+                tone_class = "danger" if tone_class == "danger" else ("gold" if tone_class == "gold" else "")
                 st.markdown(
                     f"""
-                    <div class="insight-card">
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
-                            <div style="flex:1;min-width:240px;">
-                                <div style="font-size:12px;color:{item['color']};font-weight:700;letter-spacing:1px;text-transform:uppercase;">{item['icon']} {item['area']}</div>
-                                <div style="font-size:13px;color:#DDD;margin-top:8px;line-height:1.6;">{item['why']}</div>
-                                <div style="font-size:12px;color:#888;margin-top:10px;line-height:1.5;"><strong style="color:#00D4AA;">Drill:</strong> {item['drill']}</div>
-                            </div>
-                            <div style="text-align:right;">
-                                <div class="insight-strokes">{item['strokes_saved']}</div>
-                                <div style="font-size:10px;color:#888;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;margin-top:4px;">strokes</div>
-                            </div>
-                        </div>
+                    <div class="insight-card {tone_class}">
+                        <div class="icon">{ins['icon']}</div>
+                        <div class="title">{ins['title']}</div>
+                        <div class="body">{ins['body']}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
+                # Clickable drill link if present
+                if ins.get("drill_link"):
+                    drill = get_by_id(ins["drill_link"])
+                    if drill:
+                        if st.button(f"▶ Open: {drill['title']}", key=f"ins_drill_{i}", use_container_width=True):
+                            st.session_state["active_page"] = "plan"
+                            st.session_state["selected_drill"] = drill["id"]
+                            st.rerun()
 
-        # Goal progress
-        st.markdown('<div class="section-label" style="margin-top:24px;">GOAL PROGRESS</div>', unsafe_allow_html=True)
-        for name, pct, c1c, c2c, note in [
-            ("Break 80 Consistently", 60, "#00D4AA", "#00B894", f"Avg {avg5 if gap.get('avg') else '—'} · {gap.get('under_80_count', 0)} of last {gap.get('of_last', 0)} under 80"),
-            ("300-Yard Driver",       47, "#FFB800", "#FF8C00", "Current potential: 270 yds · need +30"),
-            ("Reach 20 Handicap",     35, "#4A9EFF", "#2980F0", "From 31.3 → 20.0"),
-        ]:
-            st.markdown(
-                f"""
-                <div style="margin-bottom:18px;">
-                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                        <span style="font-size:14px;font-weight:600;">{name}</span>
-                        <span style="font-size:14px;font-weight:800;color:{c1c};">{pct}%</span>
-                    </div>
-                    <div class="prog-track">
-                        <div class="prog-fill" style="width:{pct}%;--c1:{c1c};--c2:{c2c};"></div>
-                    </div>
-                    <div style="font-size:11px;color:#777;margin-top:6px;">{note}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    with right:
-        # MY BAG
-        st.markdown('<div class="section-label">MY BAG · TAP A CLUB</div>', unsafe_allow_html=True)
-
-        if "selected_club" not in st.session_state:
-            st.session_state["selected_club"] = "D"
-
-        # Render in rows of 7 buttons (handles 13 clubs cleanly: 7+6)
-        rows = [CLUBS[i:i + 7] for i in range(0, len(CLUBS), 7)]
-        for row in rows:
-            cols = st.columns(len(row))
-            for col, club in zip(cols, row):
-                with col:
-                    is_sel = st.session_state.get("selected_club") == club["label"]
-                    btn_label = f"●  {club['label']}" if is_sel else club["label"]
-                    if st.button(btn_label, key=f"clb_{club['label']}", use_container_width=True):
-                        st.session_state["selected_club"] = club["label"]
-                        st.rerun()
-
-        selected = st.session_state.get("selected_club", "D")
-        club = next((c for c in CLUBS if c["label"] == selected), CLUBS[0])
-
-        if club["carry"] > 0:
-            path_color = "#FF3B30" if club["path"] < -3 else "#00D4AA"
-            st.markdown(
-                f"""
-                <div class="data-card" style="margin-top:12px;border-top:3px solid {club['color']};">
-                    <div style="font-size:11px;color:{club['color']};font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">SELECTED · {club['label']}</div>
-                    <div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:18px;">{club['name']}</div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
-                        <div>
-                            <div style="font-size:9px;color:#777;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;">Avg Carry</div>
-                            <div style="font-size:30px;font-weight:900;color:{club['color']};line-height:1.1;">{club['carry']}<span style="font-size:11px;color:#888;font-weight:400;"> yds</span></div>
-                        </div>
-                        <div>
-                            <div style="font-size:9px;color:#777;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;">Club Speed</div>
-                            <div style="font-size:30px;font-weight:900;line-height:1.1;">{club['speed']}<span style="font-size:11px;color:#888;font-weight:400;"> mph</span></div>
-                        </div>
-                        <div>
-                            <div style="font-size:9px;color:#777;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;">Ball Speed</div>
-                            <div style="font-size:30px;font-weight:900;line-height:1.1;">{club['ball']}<span style="font-size:11px;color:#888;font-weight:400;"> mph</span></div>
-                        </div>
-                        <div>
-                            <div style="font-size:9px;color:#777;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;">Smash Factor</div>
-                            <div style="font-size:30px;font-weight:900;line-height:1.1;">{club['smash']}</div>
-                        </div>
-                        <div>
-                            <div style="font-size:9px;color:#777;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;">Apex</div>
-                            <div style="font-size:30px;font-weight:900;line-height:1.1;">{club['apex']}<span style="font-size:11px;color:#888;font-weight:400;"> ft</span></div>
-                        </div>
-                        <div>
-                            <div style="font-size:9px;color:#777;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;">Club Path</div>
-                            <div style="font-size:30px;font-weight:900;color:{path_color};line-height:1.1;">{club['path']}°</div>
-                        </div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f"""
-                <div class="data-card" style="margin-top:12px;border-top:3px solid {club['color']};">
-                    <div style="font-size:11px;color:{club['color']};font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">SELECTED · {club['label']}</div>
-                    <div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:8px;">{club['name']}</div>
-                    <div style="font-size:13px;color:#999;line-height:1.6;">Track putts per round in <strong style="color:#00D4AA;">Live Round</strong>. Mid-stroke face balanced putter — best with arc-style stroke.</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        # Achievements preview
-        st.markdown('<div class="section-label" style="margin-top:24px;">🏆 ACHIEVEMENTS</div>', unsafe_allow_html=True)
-        all_ach = all_with_status()
-        unlocked_count = sum(1 for a in all_ach if a["unlocked"])
-        total = len(all_ach)
-        st.markdown(
-            f"<div style='font-size:13px;color:#999;margin-bottom:10px;'>{unlocked_count} of {total} unlocked</div>",
-            unsafe_allow_html=True,
-        )
-        chips_html = ""
-        for a in all_ach[:8]:
-            cls = "achievement" if a["unlocked"] else "achievement locked"
-            chips_html += f'<span class="{cls}">{a["icon"]} {a["label"]}</span>'
-        st.markdown(f"<div>{chips_html}</div>", unsafe_allow_html=True)
-
-    # ── Bottom: Today's focus ──
-    st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
-    st.markdown('<div class="section-label">TODAY\'S FOCUS</div>', unsafe_allow_html=True)
-    focus = summary.get("focus_area", "Keep logging rounds for personalized recommendations.")
+    # === Vs PGA Tour gauges ===
     st.markdown(
         f"""
-        <div class="data-card" style="border-left:3px solid #00D4AA;">
-            <div style="font-size:10px;color:#00D4AA;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:8px;">AI FOCUS RECOMMENDATION</div>
-            <div style="font-size:14px;color:#DDD;line-height:1.7;">{focus}</div>
+        <div class="section-header">
+            <span class="eyebrow">Benchmark</span>
+            <h2>You vs the Tour</h2>
+            <span class="accent"></span>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    # Calculate user's stats
+    putts = [r.get("putts") for r in rounds if r.get("putts")]
+    gir = [r.get("gir") for r in rounds if r.get("gir") is not None]
+    fir = [r.get("fir") for r in rounds if r.get("fir") is not None]
+    user_putts = round(sum(putts) / len(putts), 1) if putts else None
+    user_gir = round(sum(gir) / len(gir) / 18 * 100, 1) if gir else None
+    user_fir = round(sum(fir) / len(fir) / 14 * 100, 1) if fir else None
+
+    # Driver carry from practice
+    drivers = [s["carry"] for s in shots if s.get("club") == "Driver" and s.get("carry")]
+    user_drv = round(sum(drivers) / len(drivers)) if drivers else None
+    sevens = [s["carry"] for s in shots if s.get("club") == "7i" and s.get("carry")]
+    user_7i = round(sum(sevens) / len(sevens)) if sevens else None
+
+    # Render all gauges in one card via a single-line HTML string (avoid Streamlit markdown indentation bugs)
+    gauges = []
+    gauges.append(_gauge("Putts per round", user_putts, TOUR_BENCH["putts_per_round"], lower_is_better=True))
+    if user_gir is not None:
+        gauges.append(_gauge("Greens in regulation", user_gir, TOUR_BENCH["gir_pct"], unit="%"))
+    if user_fir is not None:
+        gauges.append(_gauge("Fairways hit", user_fir, TOUR_BENCH["fairway_pct"], unit="%"))
+    if user_drv:
+        gauges.append(_gauge("Driver carry", user_drv, TOUR_CARRY["Driver"], unit="y"))
+    if user_7i:
+        gauges.append(_gauge("7-iron carry", user_7i, TOUR_CARRY["7i"], unit="y"))
+    # Single line, no indentation
+    block = '<div class="gj-card-flush">' + "".join(g for g in gauges if g) + '</div>'
+    st.markdown(block, unsafe_allow_html=True)
+
+    # === Stroke-Saver Plan (drills clickable) ===
+    st.markdown(
+        f"""
+        <div class="section-header">
+            <span class="eyebrow">Action Plan</span>
+            <h2>Your stroke-saver drills</h2>
+            <span class="accent"></span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(f"<div style='color:{COLORS['cream_dim']};font-size:14px;margin:-8px 0 16px;'>Tap any drill to open the full breakdown with video and steps.</div>", unsafe_allow_html=True)
+
+    # Pick top 4 most relevant drills based on user's weaknesses
+    drill_ids = []
+    if user_putts and user_putts > TOUR_BENCH["putts_per_round"] + 2:
+        drill_ids.extend(["putt_gate", "putt_lag"])
+    drill_ids.extend(["iron_compression", "wedge_ladder"])
+    if user_drv and user_drv < 240:
+        drill_ids.append("driver_speed")
+    drill_ids = drill_ids[:4]
+
+    cols = st.columns(2)
+    for i, did in enumerate(drill_ids):
+        d = get_by_id(did)
+        if not d: continue
+        with cols[i % 2]:
+            st.markdown(
+                f"""
+                <div class="gj-card-flush" style="margin-bottom:12px;">
+                    <div style="display:flex;align-items:flex-start;gap:14px;">
+                        <div style="font-size:32px;">{d['icon']}</div>
+                        <div style="flex:1;">
+                            <div style="font-size:11px;color:{COLORS['flag']};letter-spacing:0.18em;text-transform:uppercase;font-weight:700;">{d['category']}</div>
+                            <div style="font-size:16px;font-weight:700;color:{COLORS['cream']};margin-top:3px;line-height:1.3;">{d['title']}</div>
+                            <div style="font-size:12px;color:{COLORS['cream_dim']};margin-top:6px;">{d['summary']}</div>
+                            <div style="display:flex;gap:8px;margin-top:10px;">
+                                <span class="gj-pill">{d['duration']}</span>
+                                <span class="gj-pill gj-pill-gold">📺 Video</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button(f"▶ Open drill", key=f"ss_{did}", use_container_width=True, type="primary"):
+                st.session_state["active_page"] = "plan"
+                st.session_state["selected_drill"] = did
+                st.rerun()
+
+    # === Recent rounds quick view ===
+    if rounds:
+        st.markdown(
+            f"""
+            <div class="section-header">
+                <span class="eyebrow">Recent</span>
+                <h2>Last 5 rounds</h2>
+                <span class="accent"></span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        for r in reversed(rounds[-5:]):
+            score = r.get("score", "—")
+            par = r.get("par", 72)
+            diff = score - par if isinstance(score, (int, float)) else 0
+            diff_str = f"+{diff}" if diff > 0 else (str(diff) if diff < 0 else "E")
+            color = COLORS["fairway_2"] if diff <= 0 else (COLORS["flag"] if diff < 8 else COLORS["danger"])
+            st.markdown(
+                f"""
+                <div class="gj-card-flush" style="display:flex;justify-content:space-between;align-items:center;padding:16px 22px;margin-bottom:8px;">
+                    <div>
+                        <div style="font-size:14px;font-weight:600;color:{COLORS['cream']};">{r.get('course', '—')}</div>
+                        <div style="font-size:12px;color:{COLORS['cream_dim']};margin-top:2px;">{r.get('date', '—')} · Par {par}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:18px;">
+                        <div style="text-align:right;">
+                            <div style="font-size:10px;color:{COLORS['cream_dim']};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;">Putts</div>
+                            <div style="font-family:'Fraunces',serif;font-size:18px;color:{COLORS['cream']};">{r.get('putts', '—')}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:10px;color:{COLORS['cream_dim']};letter-spacing:0.15em;text-transform:uppercase;font-weight:700;">GIR</div>
+                            <div style="font-family:'Fraunces',serif;font-size:18px;color:{COLORS['cream']};">{r.get('gir', '—')}</div>
+                        </div>
+                        <div style="text-align:right;min-width:70px;">
+                            <div style="font-family:'Fraunces',serif;font-size:32px;font-weight:700;color:{COLORS['cream']};line-height:1;">{score}</div>
+                            <div style="font-size:11px;color:{color};font-weight:700;letter-spacing:0.05em;">{diff_str}</div>
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
