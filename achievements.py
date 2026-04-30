@@ -161,7 +161,7 @@ def _dispersion(d):
 # ---- API ----
 def evaluate_all():
     d = load_data()
-    unlocked = set(d.get("achievements", []))
+    unlocked = set(d.get("achievements") or [])
     newly = []
     for ach in ACHIEVEMENTS:
         aid, icon, name, desc, fn = ach
@@ -181,7 +181,7 @@ def evaluate_all():
 
 def get_all():
     d = load_data()
-    unlocked = set(d.get("achievements", []))
+    unlocked = set(d.get("achievements") or [])
     out = []
     for aid, icon, name, desc, fn in ACHIEVEMENTS:
         out.append({

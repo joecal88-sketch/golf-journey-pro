@@ -37,18 +37,30 @@ def load_data() -> dict:
         try:
             with open(DATA_FILE, "r") as f:
                 d = json.load(f)
-            # Ensure all top-level keys exist (heal old saves)
+            if not isinstance(d, dict):
+                d = {}
+            # Heal: ensure every top-level key exists AND has the right type.
             for k, v in DEFAULT_DATA.items():
-                if k not in d:
-                    d[k] = v if not isinstance(v, (list, dict)) else (v.copy() if isinstance(v, dict) else list(v))
-            if not d.get("settings", {}).get("gemini_key"):
-                d.setdefault("settings", {})["gemini_key"] = DEFAULT_DATA["settings"]["gemini_key"]
+                if k not in d or d[k] is None or type(d[k]) != type(v):
+                    d[k] = _deep_copy(v)
+            # Heal nested settings
+            if not isinstance(d.get("settings"), dict):
+                d["settings"] = _deep_copy(DEFAULT_DATA["settings"])
+            if not d["settings"].get("gemini_key"):
+                d["settings"]["gemini_key"] = DEFAULT_DATA["settings"]["gemini_key"]
+            try:
                 save_data(d)
+            except Exception:
+                pass
             return d
         except Exception:
             pass
-    save_data(DEFAULT_DATA)
-    return _deep_copy(DEFAULT_DATA)
+    fresh = _deep_copy(DEFAULT_DATA)
+    try:
+        save_data(fresh)
+    except Exception:
+        pass
+    return fresh
 
 
 def _deep_copy(obj):
