@@ -181,8 +181,23 @@ def render():
 
         if not clubs_to_show:
             st.info("Log shots in the Quick Log tab to see your dispersion pattern here.")
-            return
+        else:
+            _render_range_view(shots, clubs_to_show)
 
+    # === QUICK LOG ===
+    with tab2:
+        _render_quick_log()
+
+    # === BY CLUB ===
+    with tab3:
+        _render_by_club(shots)
+
+    # === CSV IMPORT ===
+    with tab4:
+        _render_csv_import()
+
+
+def _render_range_view(shots, clubs_to_show):
         # Club picker buttons
         if "selected_club" not in st.session_state:
             st.session_state["selected_club"] = "7i" if "7i" in clubs_to_show else clubs_to_show[0]
@@ -266,8 +281,8 @@ def render():
         if di is not None:
             update_metric("dispersion_index", di)
 
-    # === QUICK LOG ===
-    with tab2:
+
+def _render_quick_log():
         st.markdown(f"<div style='color:{COLORS['cream_dim']};font-size:14px;margin-bottom:14px;'>Log a quick shot — auto-saved.</div>", unsafe_allow_html=True)
 
         col1, col2, col3, col4 = st.columns(4)
@@ -293,8 +308,8 @@ def render():
             st.success(f"Logged: {club} {carry}y, {offline:+}y offline")
             st.rerun()
 
-    # === BY CLUB ===
-    with tab3:
+
+def _render_by_club(shots):
         if not shots:
             st.info("No shots logged yet.")
         else:
@@ -317,8 +332,8 @@ def render():
             })
             st.dataframe(agg, use_container_width=True)
 
-    # === CSV IMPORT ===
-    with tab4:
+
+def _render_csv_import():
         st.markdown(
             f"""
             <div class="gj-card-flush">

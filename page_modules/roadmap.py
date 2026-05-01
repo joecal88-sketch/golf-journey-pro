@@ -6,7 +6,7 @@ from achievements import get_all, stats as ach_stats
 from styles import COLORS
 
 try:
-    import google.generativeai as genai
+    from gemini_client import generate_text
     HAS_GENAI = True
 except Exception:
     HAS_GENAI = False
@@ -69,9 +69,6 @@ def _drill_detail(drill):
         else:
             try:
                 d = load_data()
-                key = d.get("settings", {}).get("gemini_key", "")
-                genai.configure(api_key=key)
-                model = genai.GenerativeModel("gemini-1.5-flash")
                 profile = d.get("profile", {})
                 prompt = (
                     f"You are a PGA-level golf coach speaking to {profile.get('name', 'the player')}, "
@@ -85,8 +82,7 @@ def _drill_detail(drill):
                     f"Be direct, motivating, no fluff. Use 'you' throughout."
                 )
                 with st.spinner("Personalizing..."):
-                    resp = model.generate_content(prompt)
-                    text = resp.text
+                    text = generate_text(prompt)
                 append_ai_drill({"drill_id": drill["id"], "text": text})
                 st.markdown(
                     f"""
@@ -219,9 +215,6 @@ def _render_ai_drill_gen():
             return
         try:
             d = load_data()
-            key = d.get("settings", {}).get("gemini_key", "")
-            genai.configure(api_key=key)
-            model = genai.GenerativeModel("gemini-1.5-flash")
             profile = d.get("profile", {})
             prompt = (
                 f"Create a custom golf drill for a {profile.get('ghin', 31)} handicap player named "
@@ -237,8 +230,7 @@ def _render_ai_drill_gen():
                 f"Be direct, motivating, like a coach. No fluff."
             )
             with st.spinner("Drafting your drill..."):
-                resp = model.generate_content(prompt)
-                text = resp.text
+                text = generate_text(prompt)
             append_ai_drill({"issue": issue, "club": club, "text": text})
             st.markdown(
                 f"""

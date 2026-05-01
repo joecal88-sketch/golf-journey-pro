@@ -1,1 +1,1 @@
-# Golf Journey Pro v5.0 — page modules
+# Golf Journey Pro v5.2 — page modules

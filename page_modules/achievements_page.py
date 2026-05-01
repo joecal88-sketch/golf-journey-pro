@@ -1,11 +1,107 @@
-"""Golf Journey Pro v5.1 — Dedicated Achievements Hub.
+"""Golf Journey Pro v5.2 — Dedicated Achievements Hub.
 
-100 challenges across 4 tiers, 8 categories. Filterable, sortable,
-with tier-colored progress bars and points system.
+150+ challenges across 4 tiers, 8 categories. Filterable, sortable,
+with hover glass FX, click-to-detail modals, and unlock timestamps.
 """
 import streamlit as st
 from styles import COLORS
 from achievements import get_all, stats, TIER_INFO, ACHIEVEMENTS
+
+
+def _inject_achievement_css():
+    """One-time CSS injection for hover glass + tier glows."""
+    if st.session_state.get("_ach_css_done"):
+        return
+    st.session_state["_ach_css_done"] = True
+    st.markdown("""
+    <style>
+      .ach-card {
+        position: relative;
+        border-radius: 14px;
+        padding: 14px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        min-height: 90px;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        transition: transform 0.25s cubic-bezier(.2,.8,.2,1), box-shadow 0.25s ease, border-color 0.25s ease;
+        cursor: pointer;
+        overflow: hidden;
+      }
+      .ach-card::before {
+        content: "";
+        position: absolute; inset: 0;
+        background: radial-gradient(circle at 30% 0%, rgba(255,255,255,0.06), transparent 60%);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      .ach-card:hover {
+        transform: translateY(-3px) scale(1.025);
+        box-shadow: 0 14px 38px rgba(0,0,0,0.45), 0 0 0 1px var(--tier-color, rgba(255,255,255,0.2));
+      }
+      .ach-card:hover::before { opacity: 1; }
+      .ach-card .ach-icon {
+        font-size: 36px;
+        line-height: 1;
+        flex-shrink: 0;
+        transition: transform 0.3s ease, filter 0.3s ease;
+      }
+      .ach-card:hover .ach-icon {
+        transform: scale(1.1) rotate(-4deg);
+      }
+      .ach-card.locked { opacity: 0.55; }
+      .ach-card.locked .ach-icon { filter: grayscale(1); }
+      .ach-card.locked:hover { opacity: 0.78; }
+      .ach-glow-ring {
+        position: absolute; inset: -1px;
+        border-radius: 14px;
+        pointer-events: none;
+        opacity: 0; transition: opacity 0.3s ease;
+      }
+      .ach-card:hover .ach-glow-ring { opacity: 1; }
+      /* Click button styling — invisible overlay */
+      .ach-clickable .stButton button {
+        background: transparent !important;
+        border: none !important;
+        color: rgba(255,255,255,0.5) !important;
+        font-size: 11px !important;
+        padding: 4px 0 !important;
+        margin-top: -4px !important;
+      }
+      .ach-clickable .stButton button:hover {
+        color: rgba(255,255,255,0.9) !important;
+        background: rgba(255,255,255,0.04) !important;
+      }
+      .ach-modal {
+        background: rgba(20, 28, 24, 0.90); backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1.5px solid var(--tier-color);
+        border-radius: 18px;
+        padding: 32px 34px;
+        margin: 16px 0 20px;
+        box-shadow: 0 16px 70px rgba(0,0,0,0.6), 0 0 60px var(--tier-color);
+        animation: ach-rise 0.4s cubic-bezier(.2,.8,.2,1);
+      }
+      @keyframes ach-rise {
+        from { opacity: 0; transform: translateY(20px) scale(0.96); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      .ach-modal h2 { margin: 0 0 4px; font-size: 28px; color: #fff; }
+      .ach-modal .ach-cat { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--tier-color); font-weight: 800; }
+      .ach-modal .ach-desc { color: rgba(255,255,255,0.78); font-size: 15px; margin: 14px 0; line-height: 1.55; }
+      .ach-modal .ach-meta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 18px; }
+      .ach-modal .ach-meta-tile {
+        flex: 1; min-width: 130px;
+        background: rgba(0,0,0,0.3); padding: 12px 14px; border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.08);
+      }
+      .ach-modal .ach-meta-label { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.55); font-weight: 700; }
+      .ach-modal .ach-meta-val { font-family: 'Fraunces', serif; font-size: 22px; color: #fff; margin-top: 4px; }
+      .ach-modal .ach-hero-icon { font-size: 72px; line-height: 1; }
+    </style>
+    """, unsafe_allow_html=True)
 
 
 def _tier_chip(tier: str) -> str:
@@ -31,38 +127,100 @@ def _progress_bar(pct: float, color: str, height: int = 8) -> str:
 def _ach_card(a: dict) -> str:
     info = TIER_INFO.get(a["tier"], TIER_INFO["easy"])
     color = info["color"]
-    if a["unlocked"]:
-        return (
-            f'<div style="background:linear-gradient(160deg,{color}1c,{COLORS["bg_3"]});'
-            f'border:1.5px solid {color}88;border-radius:14px;padding:14px;display:flex;'
-            f'gap:12px;align-items:center;min-height:84px;box-shadow:0 4px 18px {color}22;">'
-            f'<div style="font-size:36px;line-height:1;flex-shrink:0;filter:drop-shadow(0 2px 6px {color}55);">{a["icon"]}</div>'
-            f'<div style="flex:1;min-width:0;">'
-            f'<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px;">'
-            f'<div style="font-family:\'Fraunces\',serif;font-size:15px;font-weight:700;color:{COLORS["cream"]};">{a["name"]}</div>'
-            f'{_tier_chip(a["tier"])}</div>'
-            f'<div style="font-size:11.5px;color:{COLORS["cream_dim"]};line-height:1.4;">{a["desc"]}</div>'
-            f'<div style="font-size:9px;color:{color};letter-spacing:0.2em;text-transform:uppercase;font-weight:800;margin-top:6px;">✓ Unlocked</div>'
-            f'</div></div>'
-        )
-    # locked
+    locked_class = "" if a["unlocked"] else "locked"
+    bg = (
+        f'linear-gradient(160deg,{color}1c,{COLORS["bg_3"]})'
+        if a["unlocked"] else COLORS["bg_2"]
+    )
+    border = f'1.5px solid {color}88' if a["unlocked"] else f'1px solid {COLORS["border"]}'
+    shadow = f'0 4px 18px {color}22' if a["unlocked"] else "none"
+    text_color = COLORS["cream"] if a["unlocked"] else COLORS["text_dim"]
+    desc_color = COLORS["cream_dim"] if a["unlocked"] else COLORS["muted"]
+    status_html = (
+        f'<div style="font-size:9px;color:{color};letter-spacing:0.2em;text-transform:uppercase;font-weight:800;margin-top:6px;">✓ Unlocked'
+        + (f' · {a.get("unlocked_at","")[:10]}' if a.get("unlocked_at") else "")
+        + '</div>'
+    ) if a["unlocked"] else (
+        f'<div style="font-size:9px;color:{COLORS["muted"]};letter-spacing:0.2em;text-transform:uppercase;font-weight:800;margin-top:6px;">🔒 Locked</div>'
+    )
     return (
-        f'<div style="background:{COLORS["bg_2"]};border:1px solid {COLORS["border"]};'
-        f'border-radius:14px;padding:14px;display:flex;gap:12px;align-items:center;'
-        f'min-height:84px;opacity:0.6;">'
-        f'<div style="font-size:36px;line-height:1;flex-shrink:0;filter:grayscale(1);">{a["icon"]}</div>'
-        f'<div style="flex:1;min-width:0;">'
-        f'<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px;">'
-        f'<div style="font-family:\'Fraunces\',serif;font-size:15px;font-weight:700;color:{COLORS["text_dim"]};">{a["name"]}</div>'
-        f'{_tier_chip(a["tier"])}</div>'
-        f'<div style="font-size:11.5px;color:{COLORS["muted"]};line-height:1.4;">{a["desc"]}</div>'
-        f'</div></div>'
+        f'<div class="ach-card {locked_class}" '
+        f'style="--tier-color:{color}; background:{bg}; border:{border}; box-shadow:{shadow};">'
+        f'  <div class="ach-glow-ring" style="box-shadow:inset 0 0 0 2px {color}66, 0 0 24px {color}44;"></div>'
+        f'  <div class="ach-icon" style="filter:drop-shadow(0 2px 6px {color}55);">{a["icon"]}</div>'
+        f'  <div style="flex:1;min-width:0;">'
+        f'    <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px;">'
+        f'      <div style="font-family:\'Fraunces\',serif;font-size:15px;font-weight:700;color:{text_color};">{a["name"]}</div>'
+        f'      {_tier_chip(a["tier"])}</div>'
+        f'    <div style="font-size:11.5px;color:{desc_color};line-height:1.4;">{a["desc"]}</div>'
+        f'    {status_html}'
+        f'  </div>'
+        f'</div>'
     )
 
 
+def _render_ach_modal(all_a):
+    """Render glass modal for the currently-selected achievement."""
+    aid = st.session_state.get("ach_modal_id")
+    if not aid:
+        return
+    a = next((x for x in all_a if x["id"] == aid), None)
+    if not a:
+        return
+    info = TIER_INFO.get(a["tier"], TIER_INFO["easy"])
+    color = info["color"]
+
+    # Find related "next" achievements in same category (locked)
+    related = [x for x in all_a if x["category"] == a["category"] and not x["unlocked"] and x["id"] != aid][:3]
+    related_html = ""
+    if related:
+        rels = "".join(
+            f'<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);">'
+            f'<span style="font-size:20px;">{r["icon"]}</span>'
+            f'<span style="flex:1;font-size:13px;color:rgba(255,255,255,0.85);">{r["name"]}</span>'
+            f'<span style="font-size:9px;color:{TIER_INFO[r["tier"]]["color"]};letter-spacing:0.18em;font-weight:800;text-transform:uppercase;">{r["tier"]}</span>'
+            f'</div>' for r in related
+        )
+        related_html = f'<div style="margin-top:18px;"><div style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.55);font-weight:700;margin-bottom:6px;">What’s next in {a["category"]}</div>{rels}</div>'
+
+    unlocked_at = a.get("unlocked_at")
+    when_str = unlocked_at[:19].replace("T", " ") if unlocked_at else "—"
+    status_pill = (
+        f'<span style="display:inline-block;padding:4px 12px;border-radius:999px;background:{color}30;color:{color};border:1px solid {color}80;font-size:10px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;">✓ Unlocked</span>'
+        if a["unlocked"] else
+        f'<span style="display:inline-block;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.15);font-size:10px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;">🔒 Locked</span>'
+    )
+
+    icon_filter = f"filter:drop-shadow(0 6px 20px {color});" if a['unlocked'] else f"filter:drop-shadow(0 6px 20px {color}) grayscale(0.5);"
+    modal_html = (
+        f'<div class="ach-modal" style="--tier-color:{color}50;">'
+        f'<div style="display:flex;gap:24px;align-items:center;">'
+        f'<div class="ach-hero-icon" style="{icon_filter}">{a["icon"]}</div>'
+        f'<div style="flex:1;"><div class="ach-cat">{a["category"]} · {info["label"]}</div>'
+        f'<h2 style="margin:6px 0 0;color:#FAF7F2;font-family:Georgia,serif;font-size:28px;">{a["name"]}</h2>'
+        f'<div style="margin-top:10px;">{status_pill}</div></div></div>'
+        f'<div class="ach-desc" style="margin-top:18px;font-size:15px;color:rgba(255,255,255,0.78);line-height:1.6;">{a["desc"]}</div>'
+        f'<div class="ach-meta-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px;">'
+        f'<div class="ach-meta-tile"><div class="ach-meta-label">Points</div><div class="ach-meta-val" style="color:{color};">{info["points"]}</div></div>'
+        f'<div class="ach-meta-tile"><div class="ach-meta-label">Tier</div><div class="ach-meta-val">{info["label"]}</div></div>'
+        f'<div class="ach-meta-tile"><div class="ach-meta-label">Unlocked</div><div class="ach-meta-val" style="font-size:14px;">{when_str}</div></div>'
+        f'</div>'
+        f'{related_html}'
+        f'</div>'
+    )
+    st.markdown(modal_html, unsafe_allow_html=True)
+    if st.button("✕ Close", key=f"close_ach_modal"):
+        st.session_state["ach_modal_id"] = None
+        st.rerun()
+
+
 def render():
+    _inject_achievement_css()
     s = stats()
     all_a = get_all()
+
+    # Render modal first so it appears at the top
+    _render_ach_modal(all_a)
 
     # ── Hero header ──
     pct = (s["unlocked"] / s["total"] * 100) if s["total"] else 0
@@ -75,7 +233,7 @@ def render():
             Your Golf Journey, Tracked.
         </h1>
         <div style="font-size:15px;color:{COLORS['cream_dim']};margin-bottom:22px;">
-            100 challenges. From easy wins to legendary feats. Unlock them all.
+            {s['total']} challenges. From easy wins to legendary feats. Tap any card to dive in.
         </div>
         """,
         unsafe_allow_html=True,
@@ -244,8 +402,7 @@ def render():
 
 
 def _render_grid(items):
-    """Render achievements in a 3-column responsive grid."""
-    # Use 3 columns on wide; group items
+    """Render achievements in a 3-column responsive grid with click-to-detail."""
     cols_per_row = 3
     for i in range(0, len(items), cols_per_row):
         chunk = items[i : i + cols_per_row]
@@ -253,5 +410,10 @@ def _render_grid(items):
         for j, a in enumerate(chunk):
             with cols[j]:
                 st.markdown(_ach_card(a), unsafe_allow_html=True)
-        # vertical spacer
-        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+                # Subtle click button under each card
+                st.markdown('<div class="ach-clickable">', unsafe_allow_html=True)
+                if st.button("View details →", key=f"ach_open_{a['id']}", use_container_width=True):
+                    st.session_state["ach_modal_id"] = a["id"]
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)

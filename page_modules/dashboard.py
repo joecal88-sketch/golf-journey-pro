@@ -4,6 +4,7 @@ from cloud_storage import load_data
 from styles import COLORS
 from insights import smart_insights, TOUR_BENCH, TOUR_CARRY
 from drills import get_by_id
+from handicap import compute_index
 
 
 def _gauge(name: str, you, pro, lower_is_better=False, unit=""):
@@ -25,6 +26,100 @@ def _gauge(name: str, you, pro, lower_is_better=False, unit=""):
         f'</div>'
         f'</div>'
     )
+
+
+def _render_explainer_modal(rounds, hcp_result, best, last, avg):
+    """Show a glassmorphic dismissable modal explaining a stat's calculation."""
+    import streamlit as st
+    modal = st.session_state.get("explain_modal")
+    if not modal:
+        return
+
+    title = ""
+    body_html = ""
+
+    if modal == "handicap":
+        title = "🎯 Handicap Index — WHS Formula"
+        if hcp_result and hcp_result.get("index") is not None:
+            diffs = hcp_result.get("differentials", [])
+            used = hcp_result.get("differentials_used", [])
+            n_used = hcp_result.get("rounds_used", 0)
+            n_pool = hcp_result.get("rounds_in_pool", 0)
+            avg_used = hcp_result.get("average_used", 0)
+            adj = hcp_result.get("adjustment", 0)
+            idx = hcp_result.get("index")
+            diffs_html = "".join([f"<span class='diff-pill {'used' if d in used else ''}'>{d}</span>" for d in diffs])
+            body_html = (
+                f"<p>Computed from <b>{n_pool} round{'s' if n_pool != 1 else ''}</b> using the official USGA / R&amp;A WHS formula:</p>"
+                f"<pre class='formula'>Differential = (Score - Course Rating) × 113 / Slope</pre>"
+                f"<p>We then take the lowest <b>{n_used}</b> differential{'s' if n_used != 1 else ''} from your last 20 rounds, average them, multiply by 0.96.</p>"
+                f"<div class='diff-list'>{diffs_html}</div>"
+                f"<p style='margin-top:14px;'>Math: avg of best {n_used} = <b>{avg_used}</b> × 0.96 = <b>{round(avg_used*0.96,2)}</b>{f' + {adj} adj' if adj else ''} = <b>{idx}</b></p>"
+            )
+        else:
+            body_html = "<p>Need at least 3 logged rounds to compute. Log more rounds and your handicap will recalculate automatically.</p>"
+
+    elif modal == "best":
+        scores = [r.get("score") for r in rounds if r.get("score")]
+        if scores:
+            best_round = min(rounds, key=lambda r: r.get("score", 999))
+            title = "🏆 Best Round — Career Low"
+            body_html = (
+                f"<p>Your lowest score across <b>{len(rounds)}</b> logged rounds.</p>"
+                f"<div class='stat-row'>Score: <b>{best_round.get('score')}</b> on {best_round.get('course')} ({best_round.get('date')})</div>"
+                f"<div class='stat-row'>Par: {best_round.get('par')} — finished <b>{best_round.get('score') - best_round.get('par'):+}</b></div>"
+                f"<div class='stat-row'>Putts: {best_round.get('putts', '—')} · GIR: {best_round.get('gir', '—')} · FIR: {best_round.get('fir', '—')}</div>"
+            )
+        else:
+            body_html = "<p>Log a round to start tracking your best.</p>"
+
+    elif modal == "last":
+        if rounds:
+            r = rounds[-1]
+            title = "⛳ Last Round"
+            body_html = (
+                f"<div class='stat-row'>Course: <b>{r.get('course')}</b></div>"
+                f"<div class='stat-row'>Date: {r.get('date')}</div>"
+                f"<div class='stat-row'>Score: <b>{r.get('score')}</b> (par {r.get('par')})</div>"
+                f"<div class='stat-row'>Putts: {r.get('putts', '—')} · GIR: {r.get('gir', '—')}/18 · FIR: {r.get('fir', '—')}/14</div>"
+                f"<div class='stat-row'>Course rating/slope: {r.get('course_rating', '—')} / {r.get('slope', '—')}</div>"
+            )
+        else:
+            body_html = "<p>No rounds logged yet.</p>"
+
+    elif modal == "avg":
+        scores = [r.get("score") for r in rounds if r.get("score")]
+        if scores:
+            title = "📊 Round Average"
+            recent = scores[-5:]
+            body_html = (
+                f"<p>Mean score across <b>{len(scores)}</b> logged rounds.</p>"
+                f"<pre class='formula'>{' + '.join(str(s) for s in scores[:8])}{' + ...' if len(scores)>8 else ''} ÷ {len(scores)} = {round(sum(scores)/len(scores),1)}</pre>"
+                f"<p>Last 5 rounds: {', '.join(str(s) for s in recent)} — trend avg <b>{round(sum(recent)/len(recent),1)}</b></p>"
+            )
+        else:
+            body_html = "<p>Log rounds to see your average.</p>"
+
+    # Render glassmorphic modal (single-line HTML to avoid Streamlit markdown indent issues)
+    css = (
+        "<style>"
+        f".gj-explainer{{background:rgba(20,28,24,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid {COLORS['flag']}50;border-radius:16px;padding:28px 30px;margin:14px 0 18px;box-shadow:0 12px 60px rgba(0,0,0,0.4),0 0 0 1px {COLORS['flag']}20;animation:fadeInUp 0.35s ease-out;}}"
+        "@keyframes fadeInUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}"
+        f".gj-explainer h3{{margin:0 0 14px;font-size:22px;color:{COLORS['cream']};}}"
+        f".gj-explainer p{{color:{COLORS['cream_dim']};line-height:1.6;margin:8px 0;}}"
+        f".gj-explainer .formula{{background:rgba(0,0,0,0.4);padding:10px 14px;border-radius:8px;color:{COLORS['flag']};font-family:'JetBrains Mono',monospace;font-size:13px;margin:10px 0;white-space:pre-wrap;border-left:2px solid {COLORS['flag']};}}"
+        f".gj-explainer .stat-row{{color:{COLORS['cream']};padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:14px;}}"
+        ".gj-explainer .diff-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}"
+        f".gj-explainer .diff-pill{{background:rgba(255,255,255,0.06);padding:4px 10px;border-radius:999px;font-size:12px;color:{COLORS['cream_dim']};font-family:'JetBrains Mono',monospace;}}"
+        f".gj-explainer .diff-pill.used{{background:{COLORS['flag']}30;color:{COLORS['flag']};font-weight:700;border:1px solid {COLORS['flag']}80;}}"
+        "</style>"
+    )
+    html = f'{css}<div class="gj-explainer"><h3>{title}</h3>{body_html}</div>'
+    st.markdown(html, unsafe_allow_html=True)
+
+    if st.button("✕ Close", key=f"close_{modal}", use_container_width=False):
+        st.session_state["explain_modal"] = None
+        st.rerun()
 
 
 def _hero_block(label, value, unit="", sub=""):
@@ -64,11 +159,35 @@ def render():
     else:
         best = avg = last = "—"
 
+    # Compute live WHS handicap from rounds
+    hcp_result = compute_index(rounds) if rounds else None
+    computed_hcp = hcp_result.get("index") if hcp_result and hcp_result.get("index") is not None else profile.get("ghin", "—")
+    ghin_display = profile.get("ghin", "—")
+
     c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(_hero_block("HANDICAP", profile.get("ghin", "—"), "", "GHIN index"), unsafe_allow_html=True)
-    with c2: st.markdown(_hero_block("BEST", best, "", "career low"), unsafe_allow_html=True)
-    with c3: st.markdown(_hero_block("LAST ROUND", last, "", f"{rounds[-1].get('course', '')[:14]}" if rounds else ""), unsafe_allow_html=True)
-    with c4: st.markdown(_hero_block("ROUND AVG", avg, "", f"over {len(rounds)} rounds"), unsafe_allow_html=True)
+    with c1:
+        st.markdown(_hero_block("HANDICAP", computed_hcp, "", f"GHIN: {ghin_display}"), unsafe_allow_html=True)
+        if st.button("How is this calculated?", key="explain_hcp", use_container_width=True):
+            st.session_state["explain_modal"] = "handicap"
+            st.rerun()
+    with c2:
+        st.markdown(_hero_block("BEST", best, "", "career low"), unsafe_allow_html=True)
+        if st.button("How is this calculated?", key="explain_best", use_container_width=True):
+            st.session_state["explain_modal"] = "best"
+            st.rerun()
+    with c3:
+        st.markdown(_hero_block("LAST ROUND", last, "", f"{rounds[-1].get('course', '')[:14]}" if rounds else ""), unsafe_allow_html=True)
+        if st.button("How is this calculated?", key="explain_last", use_container_width=True):
+            st.session_state["explain_modal"] = "last"
+            st.rerun()
+    with c4:
+        st.markdown(_hero_block("ROUND AVG", avg, "", f"over {len(rounds)} rounds"), unsafe_allow_html=True)
+        if st.button("How is this calculated?", key="explain_avg", use_container_width=True):
+            st.session_state["explain_modal"] = "avg"
+            st.rerun()
+
+    # Render explainer modal if active
+    _render_explainer_modal(rounds, hcp_result, best, last, avg)
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 

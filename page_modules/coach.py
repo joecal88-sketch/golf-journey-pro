@@ -5,7 +5,7 @@ from cloud_storage import load_data, append_coach
 from styles import COLORS
 
 try:
-    import google.generativeai as genai
+    from gemini_client import generate_text, generate_with_image
     from PIL import Image
     HAS_GENAI = True
 except Exception:
@@ -121,9 +121,6 @@ def _chat_tab():
         else:
             try:
                 d = load_data()
-                key = d.get("settings", {}).get("gemini_key", "")
-                genai.configure(api_key=key)
-                model = genai.GenerativeModel("gemini-1.5-flash")
                 profile = d.get("profile", {})
                 rounds = d.get("rounds", []) or []
                 shots = d.get("practice_shots", []) or []
@@ -134,13 +131,13 @@ def _chat_tab():
                     f"Career goal: break 80, 300y driver. They have {len(rounds)} logged rounds and {len(shots)} practice shots. "
                     f"Be direct, specific, and actionable. Cite numbers when possible. No fluff."
                 )
-                resp = model.generate_content([ctx, msg])
-                reply = resp.text
+                with st.spinner("Coach is thinking…"):
+                    reply = generate_text(msg, system=ctx)
                 st.session_state["coach_msgs"].append({"role": "assistant", "text": reply})
                 append_coach({"type": "chat", "q": msg, "a": reply})
                 _speak_js(reply)
             except Exception as e:
-                st.session_state["coach_msgs"].append({"role": "assistant", "text": f"Error: {e}"})
+                st.session_state["coach_msgs"].append({"role": "assistant", "text": f"Coach is offline: {e}"})
         st.rerun()
 
 
@@ -158,9 +155,6 @@ def _photo_tab():
                 else:
                     try:
                         d = load_data()
-                        key = d.get("settings", {}).get("gemini_key", "")
-                        genai.configure(api_key=key)
-                        model = genai.GenerativeModel("gemini-1.5-flash")
                         profile = d.get("profile", {})
                         prompt = (
                             f"You're an elite golf coach. Analyze this swing photo for "
@@ -174,9 +168,13 @@ def _photo_tab():
                             f"**📈 Expected Result:** [what improvement they should see in 2 weeks]\n\n"
                             f"Be direct, no hedging."
                         )
+                        # Convert PIL Image to bytes
+                        import io as _io
+                        buf = _io.BytesIO()
+                        img.convert("RGB").save(buf, format="JPEG", quality=85)
+                        img_bytes = buf.getvalue()
                         with st.spinner("Coach is analyzing your swing…"):
-                            resp = model.generate_content([prompt, img])
-                            text = resp.text
+                            text = generate_with_image(prompt, img_bytes, mime="image/jpeg")
                         st.markdown(
                             f"""
                             <div class="insight-card gold" style="margin-top:14px;">
