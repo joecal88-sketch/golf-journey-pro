@@ -164,27 +164,120 @@ def render():
     computed_hcp = hcp_result.get("index") if hcp_result and hcp_result.get("index") is not None else profile.get("ghin", "—")
     ghin_display = profile.get("ghin", "—")
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown(_hero_block("HANDICAP", computed_hcp, "", f"GHIN: {ghin_display}"), unsafe_allow_html=True)
-        if st.button("How is this calculated?", key="explain_hcp", use_container_width=True):
-            st.session_state["explain_modal"] = "handicap"
-            st.rerun()
-    with c2:
-        st.markdown(_hero_block("BEST", best, "", "career low"), unsafe_allow_html=True)
-        if st.button("How is this calculated?", key="explain_best", use_container_width=True):
-            st.session_state["explain_modal"] = "best"
-            st.rerun()
-    with c3:
-        st.markdown(_hero_block("LAST ROUND", last, "", f"{rounds[-1].get('course', '')[:14]}" if rounds else ""), unsafe_allow_html=True)
-        if st.button("How is this calculated?", key="explain_last", use_container_width=True):
-            st.session_state["explain_modal"] = "last"
-            st.rerun()
-    with c4:
-        st.markdown(_hero_block("ROUND AVG", avg, "", f"over {len(rounds)} rounds"), unsafe_allow_html=True)
-        if st.button("How is this calculated?", key="explain_avg", use_container_width=True):
-            st.session_state["explain_modal"] = "avg"
-            st.rerun()
+    # === Direct-click hero stats (v5.3) ===
+    # Pattern: render visual card with markdown + Streamlit button overlaid using
+    # CSS that targets columns containing .hero-stat-card (works without :has on root).
+    st.markdown(
+        f"""
+        <style>
+        /* Column containing a hero-stat-card becomes the positioning context */
+        div[data-testid="column"]:has(.hero-stat-card),
+        div[data-testid="stColumn"]:has(.hero-stat-card) {{
+            position: relative;
+        }}
+        /* The visual card */
+        .hero-stat-card {{
+            background: linear-gradient(160deg, {COLORS['bg_3']}, {COLORS['bg_2']});
+            border: 1px solid {COLORS['border']};
+            border-radius: 18px;
+            padding: 30px 20px;
+            min-height: 168px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+        }}
+        div[data-testid="column"]:has(.hero-stat-card):hover .hero-stat-card,
+        div[data-testid="stColumn"]:has(.hero-stat-card):hover .hero-stat-card {{
+            transform: translateY(-3px);
+            border-color: {COLORS['flag']}80;
+            box-shadow: 0 18px 50px rgba(212,162,76,0.18);
+        }}
+        .hero-stat-card .hsc-label {{
+            font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+            color: {COLORS['flag']}; font-weight: 800;
+        }}
+        .hero-stat-card .hsc-value {{
+            font-family: 'Fraunces', serif; font-size: 56px;
+            color: {COLORS['cream']}; line-height: 1; font-weight: 600;
+            text-shadow: 0 4px 18px rgba(212,162,76,0.18);
+        }}
+        .hero-stat-card .hsc-sub {{
+            font-size: 12px; color: {COLORS['cream_dim']}; margin-top: 2px;
+        }}
+        .hero-stat-card .hsc-hint {{
+            font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+            color: {COLORS['flag']}80; font-weight: 700; margin-top: 6px;
+            opacity: 0; transition: opacity 0.25s ease;
+        }}
+        div[data-testid="column"]:has(.hero-stat-card):hover .hero-stat-card .hsc-hint,
+        div[data-testid="stColumn"]:has(.hero-stat-card):hover .hero-stat-card .hsc-hint {{
+            opacity: 1;
+        }}
+        /* Overlay the Streamlit button on top of the entire column area */
+        div[data-testid="column"]:has(.hero-stat-card) div[data-testid="stButton"],
+        div[data-testid="stColumn"]:has(.hero-stat-card) div[data-testid="stButton"] {{
+            position: absolute !important;
+            top: 0; left: 0; right: 0; bottom: 0;
+            margin: 0 !important;
+            z-index: 5;
+            height: 100%;
+        }}
+        div[data-testid="column"]:has(.hero-stat-card) div[data-testid="stButton"] > button,
+        div[data-testid="stColumn"]:has(.hero-stat-card) div[data-testid="stButton"] > button {{
+            width: 100%;
+            height: 100%;
+            background: transparent !important;
+            border: none !important;
+            color: transparent !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            cursor: pointer;
+            min-height: 168px;
+        }}
+        div[data-testid="column"]:has(.hero-stat-card) div[data-testid="stButton"] > button:focus,
+        div[data-testid="column"]:has(.hero-stat-card) div[data-testid="stButton"] > button:hover,
+        div[data-testid="column"]:has(.hero-stat-card) div[data-testid="stButton"] > button:active,
+        div[data-testid="stColumn"]:has(.hero-stat-card) div[data-testid="stButton"] > button:focus,
+        div[data-testid="stColumn"]:has(.hero-stat-card) div[data-testid="stButton"] > button:hover,
+        div[data-testid="stColumn"]:has(.hero-stat-card) div[data-testid="stButton"] > button:active {{
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            color: transparent !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    last_course = (rounds[-1].get('course', '')[:14] if rounds else "—")
+    hero_specs = [
+        ("HANDICAP", computed_hcp, f"GHIN: {ghin_display}", "handicap", "hero_hcp"),
+        ("BEST", best, "career low", "best", "hero_best"),
+        ("LAST ROUND", last, last_course, "last", "hero_last"),
+        ("ROUND AVG", avg, f"over {len(rounds)} rounds", "avg", "hero_avg"),
+    ]
+    hero_cols = st.columns(4)
+    for col, (lbl, val, sub, modal_key, btn_key) in zip(hero_cols, hero_specs):
+        with col:
+            st.markdown(
+                f'<div class="hero-stat-card">'
+                f'<div class="hsc-label">{lbl}</div>'
+                f'<div class="hsc-value">{val}</div>'
+                f'<div class="hsc-sub">{sub}</div>'
+                f'<div class="hsc-hint">tap for breakdown</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button(" ", key=btn_key, use_container_width=True):
+                st.session_state["explain_modal"] = modal_key
+                st.rerun()
 
     # Render explainer modal if active
     _render_explainer_modal(rounds, hcp_result, best, last, avg)

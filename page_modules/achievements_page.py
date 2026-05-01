@@ -61,18 +61,44 @@ def _inject_achievement_css():
         opacity: 0; transition: opacity 0.3s ease;
       }
       .ach-card:hover .ach-glow-ring { opacity: 1; }
-      /* Click button styling — invisible overlay */
-      .ach-clickable .stButton button {
+      /* Click overlay: target ONLY buttons with key prefix "ach_open_" by using
+         Streamlit's stVerticalBlock containing both card markdown + button. The
+         column wrapper becomes the positioning context; the button absolutely
+         positions over the card markdown. */
+      div[data-testid="column"]:has(.ach-card),
+      div[data-testid="stColumn"]:has(.ach-card) {
+        position: relative;
+      }
+      div[data-testid="column"]:has(.ach-card) div[data-testid="stButton"],
+      div[data-testid="stColumn"]:has(.ach-card) div[data-testid="stButton"] {
+        position: absolute !important;
+        top: 0; left: 0; right: 0; bottom: 0;
+        margin: 0 !important;
+        z-index: 5;
+        height: 100%;
+      }
+      div[data-testid="column"]:has(.ach-card) div[data-testid="stButton"] > button,
+      div[data-testid="stColumn"]:has(.ach-card) div[data-testid="stButton"] > button {
+        width: 100%;
+        height: 100%;
+        min-height: 90px;
         background: transparent !important;
         border: none !important;
-        color: rgba(255,255,255,0.5) !important;
-        font-size: 11px !important;
-        padding: 4px 0 !important;
-        margin-top: -4px !important;
+        color: transparent !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        cursor: pointer;
       }
-      .ach-clickable .stButton button:hover {
-        color: rgba(255,255,255,0.9) !important;
-        background: rgba(255,255,255,0.04) !important;
+      div[data-testid="column"]:has(.ach-card) div[data-testid="stButton"] > button:focus,
+      div[data-testid="column"]:has(.ach-card) div[data-testid="stButton"] > button:active,
+      div[data-testid="column"]:has(.ach-card) div[data-testid="stButton"] > button:hover,
+      div[data-testid="stColumn"]:has(.ach-card) div[data-testid="stButton"] > button:focus,
+      div[data-testid="stColumn"]:has(.ach-card) div[data-testid="stButton"] > button:active,
+      div[data-testid="stColumn"]:has(.ach-card) div[data-testid="stButton"] > button:hover {
+        outline: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        color: transparent !important;
       }
       .ach-modal {
         background: rgba(20, 28, 24, 0.90); backdrop-filter: blur(24px);
@@ -432,10 +458,8 @@ def _render_grid(items):
         for j, a in enumerate(chunk):
             with cols[j]:
                 st.markdown(_ach_card(a), unsafe_allow_html=True)
-                # Subtle click button under each card
-                st.markdown('<div class="ach-clickable">', unsafe_allow_html=True)
-                if st.button("View details →", key=f"ach_open_{a['id']}", use_container_width=True):
+                # Invisible click overlay covering the entire tile (CSS handles positioning)
+                if st.button(" ", key=f"ach_open_{a['id']}", use_container_width=True):
                     st.session_state["ach_modal_id"] = a["id"]
                     st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)

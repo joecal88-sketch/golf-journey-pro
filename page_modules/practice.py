@@ -11,6 +11,69 @@ import io
 
 
 CLUBS_ORDER = ["Driver", "3W", "5H", "5i", "6i", "7i", "8i", "9i", "PW", "GW", "SW", "LW"]
+
+
+# --- Club name normalizer (handles Rapsodo / GCQuad / FlightScope / SkyTrak exports) ---
+_CLUB_ALIASES = {
+    # Driver
+    "driver": "Driver", "dr": "Driver", "d": "Driver", "1w": "Driver", "1 wood": "Driver",
+    # Woods
+    "3w": "3W", "3 wood": "3W", "three wood": "3W", "fairway": "3W", "fairway wood": "3W",
+    "5w": "3W", "5 wood": "3W",  # treat 5W under 3W bucket if needed
+    # Hybrids
+    "5h": "5H", "5 hybrid": "5H", "hybrid": "5H", "4h": "5H", "4 hybrid": "5H",
+    # Irons
+    "5i": "5i", "5 iron": "5i", "iron 5": "5i",
+    "6i": "6i", "6 iron": "6i", "iron 6": "6i",
+    "7i": "7i", "7 iron": "7i", "iron 7": "7i",
+    "8i": "8i", "8 iron": "8i", "iron 8": "8i",
+    "9i": "9i", "9 iron": "9i", "iron 9": "9i",
+    # Wedges
+    "pw": "PW", "p": "PW", "pitching wedge": "PW", "pitch": "PW",
+    "gw": "GW", "aw": "GW", "gap wedge": "GW", "approach wedge": "GW", "52": "GW",
+    "sw": "SW", "sand wedge": "SW", "56": "SW",
+    "lw": "LW", "lob wedge": "LW", "60": "LW", "58": "LW",
+}
+
+
+def normalize_club(raw) -> str:
+    """Map any vendor's club label to our canonical name. Returns original (titled) if unknown."""
+    if raw is None:
+        return ""
+    s = str(raw).strip().lower()
+    if not s or s in {"nan", "none"}:
+        return ""
+    # Direct alias hit
+    if s in _CLUB_ALIASES:
+        return _CLUB_ALIASES[s]
+    # Stripped variants (remove punctuation/extra spaces)
+    compact = "".join(ch for ch in s if ch.isalnum())
+    if compact in _CLUB_ALIASES:
+        return _CLUB_ALIASES[compact]
+    # Pattern: e.g. "7-iron", "7iron"
+    import re
+    m = re.match(r"^(\d{1,2})\s*[\-_ ]?\s*(iron|i)$", s)
+    if m:
+        n = m.group(1)
+        return f"{n}i" if n in {"3", "4", "5", "6", "7", "8", "9"} else s
+    m = re.match(r"^iron\s*(\d{1,2})$", s)
+    if m:
+        n = m.group(1)
+        return f"{n}i" if n in {"3", "4", "5", "6", "7", "8", "9"} else s
+    m = re.match(r"^(\d{1,2})\s*(wood|w)$", s)
+    if m:
+        n = m.group(1)
+        if n == "1":
+            return "Driver"
+        return f"{n}W" if n in {"3", "5", "7"} else s
+    # Loft-only wedges (e.g. "52°", "56 deg")
+    m = re.match(r"^(\d{2})\s*[°o]?\s*(deg|degrees|wedge)?$", s)
+    if m:
+        loft = int(m.group(1))
+        if loft in (50, 52): return "GW"
+        if loft in (54, 56): return "SW"
+        if loft in (58, 60, 62): return "LW"
+    return str(raw).strip()  # leave as-is so the user still sees their custom club
 CLUB_ICONS = {
     "Driver": "🏌️", "3W": "🏌️", "5H": "🪵",
     "5i": "🎯", "6i": "🎯", "7i": "🎯", "8i": "🎯", "9i": "🎯",
@@ -19,107 +82,217 @@ CLUB_ICONS = {
 
 
 def _digital_range(shots, club_name, target_carry):
-    """Render a top-down driving-range view with shot landings."""
+    """Top-down illustrated fairway with rough, sand traps, distance arcs, tee box.
+    Layered: deep rough → light rough → fairway → sand → trees → arcs → markers → shots.
+    """
     fig = go.Figure()
 
-    # Range background — fairway gradient with yard markers
-    max_y = max(target_carry * 1.2, 280)
-    width = max(80, target_carry * 0.4)
+    max_y = max(int(target_carry * 1.25), 280)
+    fairway_w = 36   # half-width of fairway
+    rough_w = 78     # half-width of rough/playable area
+    deep_w = 110     # half-width of deep rough boundary
 
-    # Fairway shape (slight perspective)
+    # 1) Deep rough background (entire panel)
+    fig.add_shape(
+        type="rect", x0=-deep_w, x1=deep_w, y0=-30, y1=max_y + 30,
+        fillcolor="#1f3a23", line=dict(width=0), layer="below",
+    )
+    # 2) Light rough strip (between fairway and deep rough)
+    fig.add_shape(
+        type="rect", x0=-rough_w, x1=rough_w, y0=-15, y1=max_y + 10,
+        fillcolor="#2f5a36", line=dict(width=0), layer="below",
+    )
+    # 3) Fairway (slight taper toward green)
     fig.add_trace(go.Scatter(
-        x=[-width/1.5, width/1.5, width, -width, -width/1.5],
-        y=[0, 0, max_y, max_y, 0],
+        x=[-fairway_w * 1.05, fairway_w * 1.05, fairway_w * 0.78, -fairway_w * 0.78, -fairway_w * 1.05],
+        y=[-10, -10, max_y - 8, max_y - 8, -10],
         fill="toself",
-        fillcolor="rgba(20, 100, 50, 0.35)",
-        line=dict(color=COLORS["fairway_2"], width=2),
+        fillcolor="#4a8a52",
+        line=dict(color="#5fa066", width=1.5),
         hoverinfo="skip", showlegend=False,
     ))
-
-    # Distance markers / target greens at 50-yd increments
-    for d in range(50, int(max_y), 50):
-        fig.add_trace(go.Scatter(
-            x=[-width * (d / max_y) * 1.05, width * (d / max_y) * 1.05],
-            y=[d, d],
-            mode="lines",
-            line=dict(color="rgba(245,239,224,0.18)", width=1, dash="dash"),
-            hoverinfo="skip", showlegend=False,
-        ))
-        fig.add_annotation(
-            x=width * (d / max_y) * 1.05, y=d,
-            text=f"{d}y", showarrow=False,
-            font=dict(color="rgba(245,239,224,0.6)", size=10, family="Inter"),
-            xanchor="left", xshift=8,
+    # 4) Mowing-stripe overlay (alternating darker stripes for that PGA TV look)
+    for i in range(0, max_y, 18):
+        if (i // 18) % 2 == 0:
+            continue
+        fig.add_shape(
+            type="rect",
+            x0=-fairway_w, x1=fairway_w,
+            y0=i, y1=i + 18,
+            fillcolor="rgba(255,255,255,0.04)",
+            line=dict(width=0), layer="below",
         )
 
-    # Target green at target_carry
-    theta = np.linspace(0, 2 * np.pi, 50)
-    green_r = 12
+    # 5) Dashed white center line (target line)
     fig.add_trace(go.Scatter(
-        x=green_r * np.cos(theta) * (width / max_y),
-        y=target_carry + green_r * np.sin(theta) * 0.6,
+        x=[0, 0], y=[0, max_y - 12],
+        mode="lines",
+        line=dict(color="rgba(255,255,255,0.45)", width=1.5, dash="dash"),
+        hoverinfo="skip", showlegend=False,
+    ))
+
+    # 6) Distance arc lines + labels at 50-yd increments
+    theta_arc = np.linspace(-np.pi / 2.6, np.pi / 2.6, 60)
+    for d in range(50, max_y + 1, 50):
+        # subtle arc across fairway
+        arc_x = (rough_w * 0.95) * np.sin(theta_arc)
+        arc_y = d + (rough_w * 0.95) * (np.cos(theta_arc) - 1) * 0.05  # nearly flat
+        # Use a straight line across rough as the arc (visual reference)
+        fig.add_trace(go.Scatter(
+            x=[-rough_w * 0.96, rough_w * 0.96],
+            y=[d, d],
+            mode="lines",
+            line=dict(color="rgba(255,255,255,0.32)", width=1, dash="dot"),
+            hoverinfo="skip", showlegend=False,
+        ))
+        # Distance label badge on right side
+        fig.add_annotation(
+            x=rough_w * 0.96 + 6, y=d,
+            text=f"<b>{d}</b>",
+            showarrow=False,
+            font=dict(color="#f5efe0", size=11, family="Inter"),
+            xanchor="left",
+            bgcolor="rgba(0,0,0,0.45)",
+            borderpad=3,
+            bordercolor="rgba(255,255,255,0.15)",
+            borderwidth=1,
+        )
+
+    # 7) Sand traps (kidney-shaped) — placed strategically along the fairway
+    def add_bunker(cx, cy, rx, ry, rotation_deg=0):
+        """Add a kidney/oval sand trap."""
+        t = np.linspace(0, 2 * np.pi, 60)
+        # kidney shape: ellipse with a slight inward dimple
+        x_local = rx * np.cos(t) - 0.18 * rx * np.cos(2 * t)
+        y_local = ry * np.sin(t)
+        rad = np.deg2rad(rotation_deg)
+        x_rot = x_local * np.cos(rad) - y_local * np.sin(rad)
+        y_rot = x_local * np.sin(rad) + y_local * np.cos(rad)
+        fig.add_trace(go.Scatter(
+            x=cx + x_rot, y=cy + y_rot,
+            fill="toself",
+            fillcolor="#e8d8a8",
+            line=dict(color="#c9b884", width=1.5),
+            hoverinfo="skip", showlegend=False,
+        ))
+
+    # Bunker positions scaled to target_carry so they always frame the landing zone
+    bunker_specs = [
+        (-fairway_w + 2, target_carry * 0.45, 9, 5, 25),
+        (fairway_w - 4, target_carry * 0.62, 11, 6, -20),
+        (-fairway_w * 0.4, target_carry * 0.92, 8, 5, 10),
+        (fairway_w * 0.55, target_carry * 1.05, 10, 5, -30),
+    ]
+    for spec in bunker_specs:
+        if spec[1] < max_y - 12:
+            add_bunker(*spec)
+
+    # 8) Tree clusters in deep rough (small dark green dots)
+    rng = np.random.default_rng(42)
+    n_trees = 28
+    tree_x = np.concatenate([
+        rng.uniform(-deep_w + 4, -rough_w - 6, n_trees // 2),
+        rng.uniform(rough_w + 6, deep_w - 4, n_trees - n_trees // 2),
+    ])
+    tree_y = rng.uniform(0, max_y, n_trees)
+    fig.add_trace(go.Scatter(
+        x=tree_x, y=tree_y,
+        mode="markers",
+        marker=dict(size=14, color="#0e1f12",
+                    line=dict(color="#1a3a22", width=1),
+                    symbol="circle"),
+        hoverinfo="skip", showlegend=False,
+    ))
+    # Tree highlights (lighter dots offset)
+    fig.add_trace(go.Scatter(
+        x=tree_x - 1.5, y=tree_y + 1.5,
+        mode="markers",
+        marker=dict(size=6, color="#2c5a36", symbol="circle"),
+        hoverinfo="skip", showlegend=False,
+    ))
+
+    # 9) Green at target_carry (oval, more elegant)
+    theta = np.linspace(0, 2 * np.pi, 60)
+    gr_x = 14 * np.cos(theta)
+    gr_y = target_carry + 9 * np.sin(theta) - 4
+    fig.add_trace(go.Scatter(
+        x=gr_x, y=gr_y,
         fill="toself",
-        fillcolor="rgba(255, 215, 100, 0.25)",
-        line=dict(color=COLORS["flag"], width=2),
+        fillcolor="#7dc788",
+        line=dict(color="#a8e0b0", width=2),
         hoverinfo="skip", showlegend=False,
     ))
-    # Pin/flag
+    # Pin shadow + flag
     fig.add_trace(go.Scatter(
-        x=[0, 0], y=[target_carry, target_carry + 8],
-        mode="lines", line=dict(color=COLORS["flag"], width=2),
+        x=[0, 0], y=[target_carry - 4, target_carry + 6],
+        mode="lines", line=dict(color="#1a1a1a", width=2),
         hoverinfo="skip", showlegend=False,
     ))
     fig.add_annotation(
-        x=0, y=target_carry + 8, text="🚩", showarrow=False, font=dict(size=18),
-        xshift=8, yshift=4,
+        x=0, y=target_carry + 6, text="🚩", showarrow=False, font=dict(size=20),
+        xshift=6, yshift=4,
     )
     fig.add_annotation(
-        x=0, y=target_carry - 18, text=f"<b>{target_carry}y</b>",
-        showarrow=False, font=dict(color=COLORS["flag"], size=13, family="Fraunces"),
+        x=0, y=target_carry - 16, text=f"<b>{target_carry}y</b>",
+        showarrow=False,
+        font=dict(color="#fff", size=12, family="Fraunces"),
+        bgcolor="rgba(0,0,0,0.55)", borderpad=3,
+        bordercolor=COLORS["flag"], borderwidth=1,
     )
 
-    # Tee box
+    # 10) Tee box
+    fig.add_shape(
+        type="rect",
+        x0=-12, x1=12, y0=-22, y1=-8,
+        fillcolor="#d4a24c",
+        line=dict(color="#a37c2c", width=2),
+    )
+    # Tee markers (two dots)
     fig.add_trace(go.Scatter(
-        x=[-15, 15, 15, -15, -15], y=[-5, -5, 0, 0, -5],
-        fill="toself", fillcolor="rgba(212,162,76,0.4)",
-        line=dict(color=COLORS["flag"], width=1),
+        x=[-7, 7], y=[-15, -15],
+        mode="markers",
+        marker=dict(size=8, color="#fff", line=dict(color="#a37c2c", width=1)),
         hoverinfo="skip", showlegend=False,
     ))
-    fig.add_annotation(x=0, y=-3, text="TEE", showarrow=False,
-                       font=dict(color=COLORS["bg"], size=10, family="Inter"))
+    fig.add_annotation(
+        x=0, y=-26, text="<b>TEE BOX</b>",
+        showarrow=False,
+        font=dict(color="#d4a24c", size=10, family="Inter"),
+    )
 
-    # Plot user's actual shots
+    # 11) Plot user's actual shots (tracer lines + landing dots + mean)
     if shots:
         carries = [s.get("carry", 0) for s in shots]
         offlines = [s.get("offline_y", 0) for s in shots]
-        # Trail lines from tee to landing
+        # Tracer lines from tee to landing
         for c, o in zip(carries, offlines):
             fig.add_trace(go.Scatter(
-                x=[0, o], y=[0, c],
+                x=[0, o], y=[-8, c],
                 mode="lines",
-                line=dict(color="rgba(212,162,76,0.18)", width=1),
+                line=dict(color="rgba(212,162,76,0.22)", width=1),
                 hoverinfo="skip", showlegend=False,
             ))
-        # Landing dots
+        # Landing dots (with subtle glow ring)
         fig.add_trace(go.Scatter(
             x=offlines, y=carries,
             mode="markers",
             marker=dict(
-                size=11, color=COLORS["flag"],
-                line=dict(color="rgba(0,0,0,0.6)", width=1),
+                size=14, color=COLORS["flag"],
+                line=dict(color="rgba(0,0,0,0.7)", width=2),
                 symbol="circle",
+                opacity=0.92,
             ),
             text=[f"Carry: {c:.0f}y<br>Offline: {o:+.0f}y" for c, o in zip(carries, offlines)],
             hoverinfo="text",
             showlegend=False,
         ))
-        # Mean ball
-        mean_c = np.mean(carries)
-        mean_o = np.mean(offlines)
+        # Mean ball (cream halo)
+        mean_c = float(np.mean(carries))
+        mean_o = float(np.mean(offlines))
         fig.add_trace(go.Scatter(
             x=[mean_o], y=[mean_c],
             mode="markers",
-            marker=dict(size=22, color=COLORS["cream"],
+            marker=dict(size=26, color=COLORS["cream"],
                         line=dict(color=COLORS["fairway_2"], width=3),
                         symbol="circle"),
             hovertext=f"Mean: {mean_c:.0f}y, {mean_o:+.0f}y",
@@ -129,12 +302,12 @@ def _digital_range(shots, club_name, target_carry):
 
     fig.update_layout(
         showlegend=False,
-        xaxis=dict(visible=False, range=[-width * 1.3, width * 1.3], scaleanchor="y", scaleratio=1),
-        yaxis=dict(visible=False, range=[-15, max_y + 30]),
-        plot_bgcolor=COLORS["bg_2"],
+        xaxis=dict(visible=False, range=[-deep_w, deep_w], scaleanchor="y", scaleratio=1),
+        yaxis=dict(visible=False, range=[-30, max_y + 30]),
+        plot_bgcolor="#0e1f12",
         paper_bgcolor=COLORS["bg_2"],
         margin=dict(l=0, r=0, t=10, b=0),
-        height=560,
+        height=620,
     )
     return fig
 
@@ -175,9 +348,17 @@ def render():
 
     # === RANGE VIEW ===
     with tab1:
+        # Normalize club names on read so legacy / non-canonical entries still bucket correctly
+        for s in shots:
+            if s.get("club"):
+                s["club"] = normalize_club(s["club"]) or s["club"]
+
         # Club picker - which clubs have data
         clubs_with_data = {s["club"] for s in shots if s.get("club")}
+        # Show canonical clubs first (in order), then any custom labels at the end
         clubs_to_show = [c for c in CLUBS_ORDER if c in clubs_with_data]
+        custom_clubs = sorted(clubs_with_data - set(CLUBS_ORDER) - {"Unknown"})
+        clubs_to_show = clubs_to_show + custom_clubs
 
         if not clubs_to_show:
             st.info("Log shots in the Quick Log tab to see your dispersion pattern here.")
@@ -313,13 +494,20 @@ def _render_by_club(shots):
         if not shots:
             st.info("No shots logged yet.")
         else:
+            # Normalize club names so all of them surface (not just canonical irons)
+            for s in shots:
+                if s.get("club"):
+                    s["club"] = normalize_club(s["club"]) or s["club"]
             df = pd.DataFrame(shots)
+            present_canonical = [c for c in CLUBS_ORDER if c in df["club"].values]
+            present_custom = sorted(set(df["club"].values) - set(CLUBS_ORDER))
+            order = present_canonical + present_custom
             agg = df.groupby("club").agg(
                 avg_carry=("carry", "mean"),
                 max_carry=("carry", "max"),
                 std_carry=("carry", "std"),
                 shots=("carry", "count"),
-            ).round(1).reindex([c for c in CLUBS_ORDER if c in df["club"].values])
+            ).round(1).reindex(order)
             agg["tour_avg"] = [TOUR_CARRY.get(c, "—") for c in agg.index]
             agg["delta"] = agg.apply(lambda r: round(r["avg_carry"] - r["tour_avg"]) if isinstance(r["tour_avg"], (int, float)) else "—", axis=1)
             agg = agg.rename(columns={
@@ -370,7 +558,11 @@ def _render_csv_import():
                 preview_rows = []
                 for _, r in df.iterrows():
                     row = {"date": datetime.now().date().isoformat()}
-                    if club_col: row["club"] = str(r[club_col])
+                    if club_col:
+                        row["club"] = normalize_club(r[club_col])
+                    if not row.get("club"):
+                        # No club label → skip silently rather than dropping shot under "unknown"
+                        row["club"] = "Unknown"
                     if carry_col and pd.notna(r[carry_col]):
                         try: row["carry"] = float(r[carry_col])
                         except: continue

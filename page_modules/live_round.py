@@ -13,7 +13,8 @@ import json
 import time
 from styles import COLORS
 from cloud_storage import load_data, append_round
-from gemini_client import chat as gemini_chat, generate_text
+from gemini_client import chat as gemini_chat, generate_text, GeminiUnavailable, is_available as gemini_available
+from caddy_brain import answer_caddy_question, recommend_club
 
 
 # -------------------- Helpers --------------------
@@ -111,9 +112,8 @@ def _wind_arrow(deg: int) -> str:
 
 # -------------------- CSS --------------------
 def _inject_css():
-    if st.session_state.get("_caddy_css"):
-        return
-    st.session_state["_caddy_css"] = True
+    # Always re-inject — Streamlit reruns can drop styles, and this CSS
+    # must apply on every sub-page render including the course detail view.
     st.markdown(f"""
     <style>
       .caddy-search-card {{
@@ -258,6 +258,69 @@ def _inject_css():
         font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
         color: {COLORS['cream_dim']}; font-weight: 800; margin-bottom: 4px;
       }}
+
+      /* Premium course detail card additions (v5.3) */
+      .sc-flag {{
+        font-size: 42px;
+        filter: drop-shadow(0 6px 18px rgba(212,162,76,0.45));
+        line-height: 1;
+        opacity: 0.95;
+      }}
+      .sc-divider {{
+        height: 1px;
+        background: linear-gradient(90deg, transparent, {COLORS['flag']}55, transparent);
+        margin: 18px 0 4px;
+      }}
+
+      /* Live conditions weather card */
+      .weather-card {{
+        margin-top: 16px;
+        padding: 22px 28px;
+        border-radius: 22px;
+        background: linear-gradient(160deg, rgba(74,144,226,0.10), rgba(20,40,60,0.55));
+        border: 1px solid rgba(120,180,230,0.22);
+        box-shadow: 0 14px 50px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+        backdrop-filter: blur(14px);
+      }}
+      .wc-eyebrow {{
+        font-size: 10px; letter-spacing: 0.36em; text-transform: uppercase;
+        color: rgba(180,210,235,0.85); font-weight: 800;
+        text-align: center; margin-bottom: 16px;
+      }}
+      .wc-row {{
+        display: flex; gap: 14px; flex-wrap: wrap;
+      }}
+      .wc-block {{
+        flex: 1; min-width: 130px;
+        background: rgba(0,0,0,0.28);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+        padding: 16px 14px;
+        text-align: center;
+        transition: transform 0.25s ease, border-color 0.25s ease;
+      }}
+      .wc-block:hover {{
+        transform: translateY(-2px);
+        border-color: rgba(120,180,230,0.35);
+      }}
+      .wc-icon {{
+        font-size: 24px; line-height: 1; margin-bottom: 8px;
+      }}
+      .wc-num {{
+        font-family: 'Fraunces', serif;
+        font-size: 30px; line-height: 1;
+        color: {COLORS['cream']}; font-weight: 600;
+      }}
+      .wc-unit {{
+        font-family: 'Fraunces', serif;
+        font-size: 14px; color: {COLORS['cream_dim']};
+        font-weight: 400; margin-left: 2px;
+      }}
+      .wc-label {{
+        font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+        color: {COLORS['cream_dim']}; font-weight: 700;
+        margin-top: 8px;
+      }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -359,6 +422,7 @@ def _render_search():
 
 # -------------------- Course detail --------------------
 def _render_course_detail(profile):
+    _inject_css()  # ensure CSS is present on this sub-page
     course = st.session_state["caddy_course"]
 
     cols = st.columns([5, 1])
@@ -370,33 +434,42 @@ def _render_course_detail(profile):
     with st.spinner("Pulling weather & course info..."):
         weather = _get_weather(course["lat"], course["lon"])
 
-    st.markdown(f"""
-    <div class="selected-course-card">
-      <div class="sc-header">
-        <div>
-          <div class="caddy-eyebrow">SELECTED COURSE</div>
-          <div class="sc-name">{course['name']}</div>
-          <div class="sc-addr">{course.get('address', '')}</div>
-        </div>
-      </div>
-      <div class="sc-stats">
-        <div class="sc-stat"><div class="label">Par</div><div class="val">{course.get('par', '—')}</div></div>
-        <div class="sc-stat"><div class="label">Rating</div><div class="val">{course.get('rating', '—')}</div></div>
-        <div class="sc-stat"><div class="label">Slope</div><div class="val">{course.get('slope', '—')}</div></div>
-        <div class="sc-stat"><div class="label">Holes</div><div class="val">{course.get('holes', 18)}</div></div>
-        <div class="sc-stat"><div class="label">Yardage</div><div class="val">{course.get('yardage', '—')}</div></div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Premium course detail card — single-line HTML to avoid Streamlit markdown indent bugs
+    course_card = (
+        '<div class="selected-course-card">'
+        '<div class="sc-header">'
+        '<div style="flex:1;">'
+        '<div class="caddy-eyebrow">✵ SELECTED COURSE</div>'
+        f'<div class="sc-name">{course["name"]}</div>'
+        f'<div class="sc-addr">{course.get("address", "")}</div>'
+        '</div>'
+        f'<div class="sc-flag">⛳</div>'
+        '</div>'
+        '<div class="sc-divider"></div>'
+        '<div class="sc-stats">'
+        f'<div class="sc-stat"><div class="label">Par</div><div class="val">{course.get("par", "—")}</div></div>'
+        f'<div class="sc-stat"><div class="label">Rating</div><div class="val">{course.get("rating", "—")}</div></div>'
+        f'<div class="sc-stat"><div class="label">Slope</div><div class="val">{course.get("slope", "—")}</div></div>'
+        f'<div class="sc-stat"><div class="label">Holes</div><div class="val">{course.get("holes", 18)}</div></div>'
+        f'<div class="sc-stat"><div class="label">Yardage</div><div class="val">{course.get("yardage", "—")}</div></div>'
+        '</div>'
+        '</div>'
+    )
+    st.markdown(course_card, unsafe_allow_html=True)
 
     if weather:
-        st.markdown(f"""
-        <div class="weather-strip">
-          <div class="w-item">🌡️ <b>{weather.get('temp_f', '—')}°F</b></div>
-          <div class="w-item">💨 <b>{weather.get('wind_mph', '—')} mph</b> from {_wind_arrow(weather.get('wind_dir', 0))}</div>
-          <div class="w-item">💧 <b>{weather.get('humidity', '—')}%</b> humidity</div>
-        </div>
-        """, unsafe_allow_html=True)
+        wind_dir_str = _wind_arrow(weather.get("wind_dir", 0))
+        weather_card = (
+            '<div class="weather-card">'
+            '<div class="wc-eyebrow">· LIVE CONDITIONS ·</div>'
+            '<div class="wc-row">'
+            f'<div class="wc-block"><div class="wc-icon">☀️</div><div class="wc-num">{weather.get("temp_f", "—")}<span class="wc-unit">°F</span></div><div class="wc-label">Temp</div></div>'
+            f'<div class="wc-block"><div class="wc-icon">🌬️</div><div class="wc-num">{weather.get("wind_mph", "—")}<span class="wc-unit"> mph</span></div><div class="wc-label">Wind from {wind_dir_str}</div></div>'
+            f'<div class="wc-block"><div class="wc-icon">💧</div><div class="wc-num">{weather.get("humidity", "—")}<span class="wc-unit">%</span></div><div class="wc-label">Humidity</div></div>'
+            '</div>'
+            '</div>'
+        )
+        st.markdown(weather_card, unsafe_allow_html=True)
         st.session_state["caddy_weather"] = weather
 
     # AI course preview
@@ -525,23 +598,49 @@ def _render_hole_view(profile):
 
 
 def _ask_caddy(prompt: str, profile, course, hole_info, weather):
-    """Send prompt to Gemini caddy and append to chat history."""
+    """Hybrid caddy: offline rule-based brain first (instant, no quota), Gemini for upgrade.
+
+    The local brain is always-on and gives a real answer using the player's bag,
+    distance, wind, and lie. If Gemini is available we layer its richer phrasing on top,
+    but the user never sees an error — they always get useful advice.
+    """
     chat = st.session_state.get("caddy_chat", [])
     chat.append({"role": "user", "text": prompt})
-    history = [(c["role"], c["text"]) for c in chat[:-1]]
-    history = [("user" if r == "user" else "model", t) for r, t in history]
-    try:
-        with st.spinner("Caddy thinking..."):
-            answer = gemini_chat(
-                history=history,
-                user_msg=prompt,
-                system=_caddy_system(course, hole_info, profile, weather),
-            )
-    except Exception as e:
-        answer = f"(Caddy offline — try again. {e})"
+
+    # 1) ALWAYS compute a local answer first — fast, deterministic, no quota burn
+    local_answer = answer_caddy_question(
+        prompt,
+        hole_info={"distance": hole_info.get("distance"), "par": hole_info.get("par")},
+        weather={"wind_mph": weather.get("wind_mph", 0), "wind_dir": _wind_arrow(weather.get("wind_dir", 0))},
+    )
+    answer = local_answer
+    source = "local"
+
+    # 2) Try Gemini for richer voice — but only if quota isn't blocked
+    if gemini_available():
+        try:
+            history = [(c["role"], c["text"]) for c in chat[:-1]]
+            history = [("user" if r == "user" else "model", t) for r, t in history]
+            with st.spinner("Caddy thinking..."):
+                ai_answer = gemini_chat(
+                    history=history,
+                    user_msg=prompt,
+                    system=_caddy_system(course, hole_info, profile, weather),
+                )
+            if ai_answer and len(ai_answer) > 20:
+                answer = ai_answer
+                source = "gemini"
+        except GeminiUnavailable:
+            pass  # silently fall back to local
+        except Exception:
+            pass
+
+    # Tag local answers so user knows it's the rule-based brain
+    if source == "local":
+        answer = answer + "\n\n_— Local Caddy Brain_"
+
     chat.append({"role": "model", "text": answer})
     st.session_state["caddy_chat"] = chat
-    # Rerun so the latest reply renders
     st.rerun()
 
 
