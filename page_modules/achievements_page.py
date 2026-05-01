@@ -314,6 +314,28 @@ def render():
 
     st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
 
+    # ── Dev controls: lock everything (for shipping a fresh app) ──
+    with st.expander("⚙️ Developer · Reset all achievements", expanded=False):
+        st.markdown(
+            f"<div style='font-size:13px;color:{COLORS['cream_dim']};margin-bottom:10px;'>"
+            "Wipes every unlocked achievement so you can re-earn them in the finished app. "
+            "Your rounds, practice shots, and profile are <b>not</b> touched."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        confirm = st.checkbox("Yes, I want to lock all achievements", key="ach_reset_confirm")
+        if st.button("🔒 Lock all 151 achievements", key="ach_reset_btn", disabled=not confirm):
+            try:
+                from cloud_storage import load_data, save_data
+                d = load_data()
+                d["achievements"] = {}
+                save_data(d)
+                st.session_state["pending_unlocks"] = []
+                st.success("All achievements locked. They'll re-unlock as you play.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Reset failed: {e}")
+
     # ── Filters ──
     st.markdown(
         f'<div style="font-size:10px;color:{COLORS["cream_dim"]};letter-spacing:0.25em;text-transform:uppercase;font-weight:700;margin-bottom:10px;">FILTER & SORT</div>',
