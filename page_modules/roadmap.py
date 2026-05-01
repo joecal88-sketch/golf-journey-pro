@@ -259,7 +259,7 @@ def render():
         <div style="margin:8px 0 22px;">
             <div style="font-size:11px;color:{COLORS['flag']};letter-spacing:0.25em;text-transform:uppercase;font-weight:800;">🎯 PLAN & DRILLS</div>
             <h1 style="margin:6px 0 4px;font-size:42px;">Your Improvement Plan</h1>
-            <div style="color:{COLORS['cream_dim']};font-size:15px;">Curated drills with real video. AI generator. Achievements.</div>
+            <div style="color:{COLORS['cream_dim']};font-size:15px;">Curated drills with real video. AI-generated drills tailored to your data.</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -272,7 +272,6 @@ def render():
             _drill_detail(drill)
             return
 
-    tab1, tab2, tab3 = st.tabs(["📚 Drill Library", "✨ AI Drill Generator", "🏆 Achievements"])
+    tab1, tab2 = st.tabs(["📚 Drill Library", "✨ AI Drill Generator"])
     with tab1: _render_drill_library()
     with tab2: _render_ai_drill_gen()
-    with tab3: _render_achievements()
