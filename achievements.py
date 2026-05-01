@@ -325,6 +325,85 @@ ACHIEVEMENTS = [
     ("improvement_5",  "📈", "Trending Down",        "5+ stroke improvement first 5 to last 5 rounds",    "hard",      "Special", lambda d: _improvement(d, 5)),
     ("improvement_10", "🌅", "Transformation",       "10+ stroke improvement first 5 to last 5 rounds",   "legendary", "Special", lambda d: _improvement(d, 10)),
     ("dawn_patrol",    "🌄", "Dawn Patrol",          "Tee off before 8am",                                "medium",    "Special", _played_morning),
+
+    # ============================================================
+    # SCORING (extra) — climbing milestones
+    # ============================================================
+    ("break_110",      "🌱", "Sub-110",              "Score under 110",                                   "easy",      "Scoring", break_score(110)),
+    ("break_105",      "🌳", "Sub-105",              "Score under 105",                                   "easy",      "Scoring", break_score(105)),
+    ("break_120",      "🌿", "Sub-120",              "Score under 120",                                   "easy",      "Scoring", break_score(120)),
+    ("two_eagles",     "🦅", "Double Eagle",         "Make 2+ eagles in a single round",                  "legendary", "Scoring", lambda d: any(sum(1 for h in _safe_list(r, "holes") if isinstance(h, dict) and _num(h.get("score"), 9) - _num(h.get("par"), 4) <= -2) >= 2 for r in _rounds(d))),
+    ("three_birdies",  "🐤", "Birdie Trio",          "3 birdies in a round",                              "medium",    "Scoring", lambda d: _birdies_in_round(d, 3)),
+    ("front_9_under_40","➕", "Sharp Front",         "Front 9 under 40 strokes",                          "medium",    "Scoring", lambda d: any(_num(r.get("front_9"), 99) < 40 for r in _rounds(d))),
+    ("back_9_under_40", "➖", "Sharp Back",          "Back 9 under 40 strokes",                           "medium",    "Scoring", lambda d: any(_num(r.get("back_9"), 99) < 40 for r in _rounds(d))),
+    ("thirty_rounds",  "3️⃣", "Thirty Strong",        "Log 30 rounds",                                     "medium",    "Scoring", at_least_rounds(30)),
+
+    # ============================================================
+    # SHORT GAME — sandies, scrambles, putt streaks
+    # ============================================================
+    ("sandie",         "🏖️", "Sandie",               "Up-and-down from a bunker",                         "medium",    "Short Game", lambda d: any((h or {}).get("sand_save") for r in _rounds(d) for h in _safe_list(r, "holes"))),
+    ("three_sandies",  "🏝️", "Beach Boy",            "3+ sandies in one round",                           "hard",      "Short Game", lambda d: any(sum(1 for h in _safe_list(r, "holes") if isinstance(h, dict) and h.get("sand_save")) >= 3 for r in _rounds(d))),
+    ("up_and_down",    "⬆️", "Up & Down",            "5+ up-and-downs in one round",                      "hard",      "Short Game", lambda d: any(sum(1 for h in _safe_list(r, "holes") if isinstance(h, dict) and h.get("up_and_down")) >= 5 for r in _rounds(d))),
+    ("chip_in",        "🎯", "Chip-In",              "Chip in from off the green",                        "hard",      "Short Game", lambda d: any(s.get("chip_in") for s in _shots(d))),
+    ("three_putts_zero","🛡️", "Three-Putt Free",     "Round with zero three-putts",                       "hard",      "Short Game", lambda d: any((not any((h or {}).get("putts", 0) >= 3 for h in _safe_list(r, "holes"))) and len(_safe_list(r, "holes")) > 0 for r in _rounds(d))),
+    ("holed_30ft",     "🌠", "30-Footer",            "Hole a putt 30ft+",                                 "legendary", "Short Game", lambda d: any(_num(s.get("putt_length"), 0) >= 30 and s.get("holed") for s in _shots(d))),
+    ("birdie_putt_long","🪄", "Magic Roll",          "Birdie putt 15ft+",                                 "hard",      "Short Game", lambda d: any(_num(s.get("putt_length"), 0) >= 15 and s.get("holed") and s.get("for_birdie") for s in _shots(d))),
+    ("gir_2_putt",     "🎯", "Greens & Putts",       "GIR 8+ AND putts under 32",                         "hard",      "Short Game", lambda d: any(_gir(r) >= 8 and _putts(r) < 32 for r in _rounds(d))),
+
+    # ============================================================
+    # DISTANCE — extra clubs and elite carries
+    # ============================================================
+    ("3w_220",         "🪵", "Pure 3-Wood",          "3W carry 220+ yards",                               "medium",    "Distance", carry_at_least("3W", 220)),
+    ("3w_240",         "🌲", "Long 3-Wood",          "3W carry 240+ yards",                               "hard",      "Distance", carry_at_least("3W", 240)),
+    ("hybrid_200",     "🏞️", "Hybrid Hero",          "5H carry 200+ yards",                               "medium",    "Distance", carry_at_least("5H", 200)),
+    ("pw_120",         "🎯", "Wedge 120",            "PW carry 120+ yards",                               "medium",    "Distance", carry_at_least("PW", 120)),
+    ("sw_90",          "⛱️", "Sand Wedge Pro",       "SW carry 90+ yards",                                "medium",    "Distance", carry_at_least("SW", 90)),
+    ("any_350",        "🔥", "Big Bomb",             "Any club carry 350+ yards",                         "legendary", "Distance", carry_any_club(350)),
+
+    # ============================================================
+    # PRACTICE — tracking depth
+    # ============================================================
+    ("week_practice",  "📅", "Practice Week",        "Practice 5+ days in 7",                             "medium",    "Practice", lambda d: _streak(d) >= 5),
+    ("month_practice", "📆", "Practice Month",       "Practice 20+ days in 30",                           "hard",      "Practice", lambda d: _streak(d) >= 20),
+    ("shot_dispersion_85","🪡", "Laser",             "Dispersion index 85+",                              "legendary", "Practice", lambda d: _dispersion(d, 85)),
+    ("all_irons",      "🪙", "Iron Day",             "Practice with all 6 irons in one session",          "hard",      "Practice", lambda d: _all_clubs_one_session(d, n=6)),
+    ("full_bag_session","🎒", "Full Bag",            "Practice with 10+ clubs in one session",            "hard",      "Practice", lambda d: _all_clubs_one_session(d, n=10)),
+
+    # ============================================================
+    # COURSES — variety + travel
+    # ============================================================
+    ("home_50",        "🏚️", "Course Mayor",         "Play home course 50 times",                         "legendary", "Courses", home_count_at_least(50)),
+    ("home_100",       "🏰", "Honorary Member",      "Play home course 100 times",                        "legendary", "Courses", home_count_at_least(100)),
+    ("play_three_homes","🏘️", "All Three Homes",     "Play all 3 home courses",                           "medium",    "Courses", lambda d: all(any(name.lower() in _course(r).lower() for r in _rounds(d)) for name in ["El Cariso", "Scholl", "Van Nuys"])),
+
+    # ============================================================
+    # COACH — engagement
+    # ============================================================
+    ("twenty_chats",   "📖", "Lesson Hunter",        "20 conversations with Coach",                       "medium",    "Coach", at_least_chats(20)),
+    ("twenty_drills",  "🧩", "Drill Builder",        "Generate 20 AI drills",                             "medium",    "Coach", at_least_drills(20)),
+    ("hundred_drills", "🧠", "Mind of a Coach",      "Generate 100 AI drills",                            "legendary", "Coach", at_least_drills(100)),
+
+    # ============================================================
+    # SPECIAL — weather, time, seasonal, gaming feel
+    # ============================================================
+    ("played_rain",    "🌧️", "Mudder",               "Play in the rain (round flagged 'rain')",           "medium",    "Special", lambda d: any("rain" in str(r.get("weather", "")).lower() for r in _rounds(d))),
+    ("played_wind",    "💨", "Wind Player",          "Play in 15+ mph wind",                              "medium",    "Special", lambda d: any(_num(r.get("wind_mph"), 0) >= 15 for r in _rounds(d))),
+    ("played_cold",    "❄️", "Cold Soldier",         "Play below 50°F",                                   "medium",    "Special", lambda d: any(_num(r.get("temp_f"), 99) < 50 for r in _rounds(d))),
+    ("played_hot",     "🌡️", "Heat Warrior",         "Play above 95°F",                                   "medium",    "Special", lambda d: any(_num(r.get("temp_f"), 0) > 95 for r in _rounds(d))),
+    ("sunset_round",   "🌅", "Sunset Round",         "Tee off after 4pm",                                 "easy",      "Special", lambda d: any(isinstance(r.get("tee_time"), str) and r["tee_time"][:2].isdigit() and int(r["tee_time"][:2]) >= 16 for r in _rounds(d))),
+    ("twilight_round", "🌃", "Twilight",             "Tee off after 5pm",                                 "medium",    "Special", lambda d: any(isinstance(r.get("tee_time"), str) and r["tee_time"][:2].isdigit() and int(r["tee_time"][:2]) >= 17 for r in _rounds(d))),
+    ("weekend_warrior","🛋️", "Weekend Warrior",      "Play 4 weekend rounds",                             "medium",    "Special", lambda d: sum(1 for r in _rounds(d) if _date(r) and datetime.strptime(_date(r), "%Y-%m-%d").weekday() >= 5) >= 4),
+    ("weekday_warrior","💼", "Played Hooky",         "Play 5 weekday rounds",                             "medium",    "Special", lambda d: sum(1 for r in _rounds(d) if _date(r) and datetime.strptime(_date(r), "%Y-%m-%d").weekday() < 5) >= 5),
+    ("morning_practice","☀️", "Early Bird",          "Practice before 7am",                               "easy",      "Special", lambda d: any("morning" in str(s.get("time", "")).lower() for s in _shots(d))),
+    ("five_rounds_month","📅", "Marathon Month",      "5+ rounds in a calendar month",                     "hard",      "Special", lambda d: _max_rounds_in_week(d) >= 4),
+    ("new_year_round", "🎆", "New Year Round",       "Play a round in January",                           "easy",      "Special", lambda d: any(_date(r).startswith("2026-01") or _date(r)[5:7] == "01" for r in _rounds(d))),
+    ("summer_round",   "🌞", "Summer Heat",          "Play in June, July, or August",                     "easy",      "Special", lambda d: any(_date(r)[5:7] in ("06", "07", "08") for r in _rounds(d))),
+    ("fall_round",     "🍂", "Autumn Player",        "Play in October or November",                       "easy",      "Special", lambda d: any(_date(r)[5:7] in ("10", "11") for r in _rounds(d))),
+    ("app_launch",     "🎮", "Day One Player",       "Open Golf Journey Pro",                             "easy",      "Special", lambda d: True),
+    ("profile_set",    "📝", "Profile Complete",     "Set up your profile with home course",              "easy",      "Special", lambda d: bool(_safe_dict(d, "profile").get("home_course"))),
+    ("voice_round",    "🎙️", "Voice Caddy On Course", "Use voice caddy during a live round",              "medium",    "Special", lambda d: any(c.get("voice") and c.get("context") == "live_round" for c in _coach(d) if isinstance(c, dict))),
+    ("first_screenshot","📷", "Memory Made",          "Take your first hole-by-hole record",               "easy",      "Special", lambda d: any(_safe_list(r, "holes") for r in _rounds(d))),
+    ("all_categories", "🌈", "Renaissance Golfer",   "Unlock at least one in every category",             "hard",      "Special", lambda d: True),  # checked at runtime
 ]
 
 
@@ -338,6 +417,22 @@ TIER_INFO = {
 
 
 # ---------- Public API ----------
+def _normalize_unlocked(raw):
+    """Convert any stored format into a dict {aid: {unlocked_at: iso}}.
+    Supports legacy list/set formats."""
+    if isinstance(raw, dict):
+        out = {}
+        for k, v in raw.items():
+            if isinstance(v, dict):
+                out[k] = v
+            else:
+                out[k] = {"unlocked_at": str(v) if v else None}
+        return out
+    if isinstance(raw, (list, set, tuple)):
+        return {aid: {"unlocked_at": None} for aid in raw}
+    return {}
+
+
 def evaluate_all():
     """Evaluate all achievements. Bulletproof against any data shape."""
     try:
@@ -346,28 +441,36 @@ def evaluate_all():
         return []
     if not isinstance(d, dict):
         return []
-    raw = d.get("achievements")
-    try:
-        unlocked = set(raw) if isinstance(raw, (list, set, tuple)) else set()
-    except Exception:
-        unlocked = set()
+    unlocked = _normalize_unlocked(d.get("achievements"))
+    now_iso = datetime.now().isoformat(timespec="seconds")
     newly = []
+    cat_unlocked = set()
     for ach in ACHIEVEMENTS:
         try:
             aid, icon, name, desc, tier, cat, fn = ach
         except Exception:
             continue
         if aid in unlocked:
+            cat_unlocked.add(cat)
             continue
         try:
-            if fn(d):
-                unlocked.add(aid)
-                newly.append({"id": aid, "icon": icon, "name": name, "desc": desc, "tier": tier})
+            # Special-case the Renaissance Golfer (one in every category)
+            if aid == "all_categories":
+                cats_in_app = {a[5] for a in ACHIEVEMENTS if len(a) >= 7}
+                if cats_in_app.issubset(cat_unlocked) and len(cat_unlocked) >= len(cats_in_app):
+                    pass
+                else:
+                    continue
+            elif not fn(d):
+                continue
+            unlocked[aid] = {"unlocked_at": now_iso}
+            cat_unlocked.add(cat)
+            newly.append({"id": aid, "icon": icon, "name": name, "desc": desc, "tier": tier, "unlocked_at": now_iso})
         except Exception:
             continue
     if newly:
         try:
-            d["achievements"] = list(unlocked)
+            d["achievements"] = unlocked
             save_data(d)
         except Exception:
             pass
@@ -375,24 +478,22 @@ def evaluate_all():
 
 
 def get_all():
-    """Return list of every achievement with unlocked state."""
+    """Return list of every achievement with unlocked state + timestamp."""
     try:
         d = load_data()
     except Exception:
         d = {}
     if not isinstance(d, dict):
         d = {}
-    raw = d.get("achievements")
-    try:
-        unlocked = set(raw) if isinstance(raw, (list, set, tuple)) else set()
-    except Exception:
-        unlocked = set()
+    unlocked = _normalize_unlocked(d.get("achievements"))
     out = []
     for aid, icon, name, desc, tier, cat, fn in ACHIEVEMENTS:
+        meta = unlocked.get(aid)
         out.append({
             "id": aid, "icon": icon, "name": name, "desc": desc,
             "tier": tier, "category": cat,
             "unlocked": aid in unlocked,
+            "unlocked_at": (meta or {}).get("unlocked_at"),
         })
     return out
 

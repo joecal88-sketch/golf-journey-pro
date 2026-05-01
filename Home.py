@@ -1,4 +1,4 @@
-"""Golf Journey Pro v5.0 — Premium Edition · Entry."""
+"""Golf Journey Pro v5.2 — Premium Edition · Entry."""
 import streamlit as st
 import streamlit.components.v1 as components
 from styles import CSS, COLORS
@@ -38,8 +38,17 @@ components.html(
 
 seed_demo_if_empty()
 newly = evaluate_all()
+if newly:
+    # Queue for confetti overlay; deduped against any already pending
+    existing_ids = {a.get("id") for a in st.session_state.get("pending_unlocks", [])}
+    for a in newly:
+        if a.get("id") not in existing_ids:
+            st.session_state.setdefault("pending_unlocks", []).append(a)
 
-from page_modules import dashboard, practice, live_round, coach, performance, roadmap, achievements_page
+from page_modules import dashboard, practice, live_round, coach, performance, roadmap, achievements_page, unlock_modal
+
+# Render confetti overlay before any page if there are pending unlocks
+unlock_modal.render_if_pending()
 
 PAGES = [
     ("home",     "🏠", "Command",       dashboard.render),
@@ -66,7 +75,7 @@ with st.sidebar:
         <div style="padding:24px 16px 22px;text-align:center;border-bottom:1px solid {COLORS['border']};margin-bottom:18px;">
             <div style="font-size:42px;line-height:1;">⛳</div>
             <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:{COLORS['cream']};margin-top:6px;letter-spacing:-0.02em;">Golf Journey</div>
-            <div style="font-size:10px;color:{COLORS['flag']};letter-spacing:0.25em;text-transform:uppercase;margin-top:6px;font-weight:800;">PRO · V5.0</div>
+            <div style="font-size:10px;color:{COLORS['flag']};letter-spacing:0.25em;text-transform:uppercase;margin-top:6px;font-weight:800;">PRO · V5.2</div>
         </div>
         """,
         unsafe_allow_html=True,

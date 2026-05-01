@@ -1,4 +1,4 @@
-"""Golf Journey Pro v5.0 — Augusta-inspired premium theme."""
+"""Golf Journey Pro v5.2 — Augusta-inspired premium theme."""
 
 # Color tokens — "Masters" palette
 COLORS = {

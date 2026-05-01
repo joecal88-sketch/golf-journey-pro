@@ -1,4 +1,4 @@
-"""Local persistent storage for Golf Journey Pro v5.0."""
+"""Local persistent storage for Golf Journey Pro v5.2."""
 import json
 import os
 from datetime import datetime, date
@@ -24,7 +24,7 @@ DEFAULT_DATA = {
     "ai_drills": [],
     "course_aim_points": {},  # {"El Cariso/hole_3": {"lat": x, "lon": y, "yards_to_pin": 145}}
     "metrics": {"dispersion_index": 0},
-    "achievements": [],
+    "achievements": {},  # {aid: {unlocked_at: iso}} — backwards compat with legacy list
     "settings": {
         "gemini_key": "AIzaSyD2osEMCaQagKBaPZqfq_jMDU-cS4HCjCw",
         "weight_unit": "yds",
@@ -40,7 +40,13 @@ def load_data() -> dict:
             if not isinstance(d, dict):
                 d = {}
             # Heal: ensure every top-level key exists AND has the right type.
+            # Special case: 'achievements' is allowed to be either a list (legacy)
+            # or a dict (new {aid: {unlocked_at}} format).
             for k, v in DEFAULT_DATA.items():
+                if k == "achievements":
+                    if k not in d or d[k] is None or not isinstance(d[k], (list, dict)):
+                        d[k] = _deep_copy(v)
+                    continue
                 if k not in d or d[k] is None or type(d[k]) != type(v):
                     d[k] = _deep_copy(v)
             # Heal nested settings
@@ -68,6 +74,12 @@ def _deep_copy(obj):
 
 
 def save_data(data: dict) -> None:
+    # Auto-recompute WHS handicap on every save
+    try:
+        from handicap import update_profile_handicap
+        update_profile_handicap(data)
+    except Exception:
+        pass
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=2, default=str)
 
@@ -75,6 +87,16 @@ def save_data(data: dict) -> None:
 def append_round(row: dict) -> None:
     data = load_data()
     row.setdefault("logged_at", str(datetime.now()))
+    # Default rating/slope from home course if not provided
+    if "course_rating" not in row or "slope" not in row:
+        course_defaults = {
+            "El Cariso": (61.1, 97),
+            "Scholl Canyon": (56.5, 89),
+            "Van Nuys Par 3": (54.5, 80),
+        }
+        cr, sl = course_defaults.get(row.get("course", ""), (72.0, 113))
+        row.setdefault("course_rating", cr)
+        row.setdefault("slope", sl)
     data["rounds"].append(row)
     save_data(data)
 
@@ -169,16 +191,21 @@ def seed_demo_if_empty() -> None:
             i += 1
         return out
 
+    # Course rating/slope from actual public records.
+    EC = {"course_rating": 61.1, "slope": 97}     # El Cariso (par 62, white)
+    SCH = {"course_rating": 56.5, "slope": 89}    # Scholl Canyon (par 60)
+    VN = {"course_rating": 54.5, "slope": 80}     # Van Nuys Par 3
+
     sample_rounds = [
-        {"date": "2026-02-08", "course": "El Cariso", "par": 71, "score": 93, "putts": 36, "gir": 2, "fir": 4},
-        {"date": "2026-02-22", "course": "El Cariso", "par": 71, "score": 88, "putts": 34, "gir": 3, "fir": 5},
-        {"date": "2026-03-08", "course": "Scholl Canyon", "par": 60, "score": 71, "putts": 32, "gir": 4, "fir": 5, "pars": scholl_pars*0+scholl_pars+[4,3,4,3,4,3,3,3,4]},  # 18-hole
-        {"date": "2026-03-15", "course": "Van Nuys Par 3", "par": 27, "score": 33, "putts": 18, "gir": 5, "fir": 0, "is_9_hole": True, "pars": par3_pars},
-        {"date": "2026-03-22", "course": "El Cariso", "par": 71, "score": 86, "putts": 33, "gir": 4, "fir": 6},
-        {"date": "2026-04-02", "course": "El Cariso", "par": 71, "score": 84, "putts": 32, "gir": 5, "fir": 7},
-        {"date": "2026-04-09", "course": "Scholl Canyon", "par": 60, "score": 70, "putts": 31, "gir": 5, "fir": 4},
-        {"date": "2026-04-16", "course": "El Cariso", "par": 71, "score": 81, "putts": 30, "gir": 6, "fir": 7},
-        {"date": "2026-04-23", "course": "El Cariso", "par": 71, "score": 79, "putts": 30, "gir": 7, "fir": 7, "notes": "Stack speed paying off"},
+        {"date": "2026-02-08", "course": "El Cariso", "par": 71, "score": 93, "putts": 36, "gir": 2, "fir": 4, **EC},
+        {"date": "2026-02-22", "course": "El Cariso", "par": 71, "score": 88, "putts": 34, "gir": 3, "fir": 5, **EC},
+        {"date": "2026-03-08", "course": "Scholl Canyon", "par": 60, "score": 71, "putts": 32, "gir": 4, "fir": 5, **SCH},
+        {"date": "2026-03-15", "course": "Van Nuys Par 3", "par": 27, "score": 33, "putts": 18, "gir": 5, "fir": 0, "is_9_hole": True, **VN},
+        {"date": "2026-03-22", "course": "El Cariso", "par": 71, "score": 86, "putts": 33, "gir": 4, "fir": 6, **EC},
+        {"date": "2026-04-02", "course": "El Cariso", "par": 71, "score": 84, "putts": 32, "gir": 5, "fir": 7, **EC},
+        {"date": "2026-04-09", "course": "Scholl Canyon", "par": 60, "score": 70, "putts": 31, "gir": 5, "fir": 4, **SCH},
+        {"date": "2026-04-16", "course": "El Cariso", "par": 71, "score": 81, "putts": 30, "gir": 6, "fir": 7, **EC},
+        {"date": "2026-04-23", "course": "El Cariso", "par": 71, "score": 79, "putts": 30, "gir": 7, "fir": 7, "notes": "Stack speed paying off", **EC},
     ]
     for r in sample_rounds:
         if "El Cariso" in r["course"]:

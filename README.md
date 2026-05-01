@@ -1,4 +1,4 @@
-# ⛳ Golf Journey Pro v5.0 — Premium Edition
+# ⛳ Golf Journey Pro v5.2 — Premium Edition
 
 A premium, mobile-ready golf improvement system built around Joel C.'s pursuit of breaking 80, hitting a 300-yard driver, and reaching a 20 handicap.
 
@@ -30,7 +30,7 @@ The terminal also prints a **Network URL** (e.g. `http://192.168.x.x:8501`) — 
 
 ---
 
-## ✨ What's in v5.0
+## ✨ What's in v5.2
 
 ### 🎨 Augusta-inspired premium UI
 Deep masters greens, parchment cream text, Fraunces serif display headlines, glassmorphism cards, gold-flag accents. The most polished version yet.

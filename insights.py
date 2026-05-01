@@ -11,6 +11,14 @@ TOUR_CARRY = {
 TOUR_BENCH = {
     "putts_per_round": 28.7, "gir_pct": 65, "fairway_pct": 60,
     "scrambling_pct": 60, "score_avg": 71.2,
+    "three_putt_pct": 2.8,        # % of holes
+    "sand_save_pct": 51,           # % up-and-downs from sand
+    "birdies_per_round": 3.6,
+    "bogey_avoidance_pct": 86,    # 1 - bogey or worse
+    "driver_speed_mph": 116,       # ball speed
+    "club_speed_mph": 113,         # tour avg driver club head speed
+    "apex_ft": 102,                # tour driver apex
+    "strokes_gained_putt": 0.0,
 }
 
 
