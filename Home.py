@@ -36,14 +36,23 @@ components.html(
     height=0,
 )
 
-seed_demo_if_empty()
-newly = evaluate_all()
+try:
+    seed_demo_if_empty()
+except Exception:
+    pass
+try:
+    newly = evaluate_all() or []
+except Exception:
+    newly = []
 if newly:
     # Queue for confetti overlay; deduped against any already pending
-    existing_ids = {a.get("id") for a in st.session_state.get("pending_unlocks", [])}
-    for a in newly:
-        if a.get("id") not in existing_ids:
-            st.session_state.setdefault("pending_unlocks", []).append(a)
+    try:
+        existing_ids = {a.get("id") for a in st.session_state.get("pending_unlocks", [])}
+        for a in newly:
+            if a.get("id") not in existing_ids:
+                st.session_state.setdefault("pending_unlocks", []).append(a)
+    except Exception:
+        pass
 
 from page_modules import dashboard, practice, live_round, coach, performance, roadmap, achievements_page, unlock_modal
 

@@ -419,18 +419,43 @@ TIER_INFO = {
 # ---------- Public API ----------
 def _normalize_unlocked(raw):
     """Convert any stored format into a dict {aid: {unlocked_at: iso}}.
-    Supports legacy list/set formats."""
-    if isinstance(raw, dict):
-        out = {}
-        for k, v in raw.items():
-            if isinstance(v, dict):
-                out[k] = v
-            else:
-                out[k] = {"unlocked_at": str(v) if v else None}
-        return out
-    if isinstance(raw, (list, set, tuple)):
-        return {aid: {"unlocked_at": None} for aid in raw}
-    return {}
+    Bulletproof against any input shape (list, dict, set, mixed, None, junk)."""
+    try:
+        if raw is None:
+            return {}
+        if isinstance(raw, dict):
+            out = {}
+            for k, v in raw.items():
+                try:
+                    key = str(k)
+                    if isinstance(v, dict):
+                        out[key] = v if "unlocked_at" in v else {**v, "unlocked_at": None}
+                    else:
+                        out[key] = {"unlocked_at": str(v) if v else None}
+                except Exception:
+                    continue
+            return out
+        if isinstance(raw, (list, set, tuple)):
+            out = {}
+            for item in raw:
+                try:
+                    if isinstance(item, str):
+                        out[item] = {"unlocked_at": None}
+                    elif isinstance(item, dict):
+                        # Support legacy v4 format {"key": "first_round", ...} and v5 {"id": ...}
+                        item_id = item.get("id") or item.get("key") or item.get("aid")
+                        if item_id:
+                            out[str(item_id)] = {"unlocked_at": item.get("unlocked_at") or item.get("date")}
+                    elif isinstance(item, (list, tuple)) and len(item) >= 1:
+                        out[str(item[0])] = {"unlocked_at": item[1] if len(item) > 1 else None}
+                    else:
+                        out[str(item)] = {"unlocked_at": None}
+                except Exception:
+                    continue
+            return out
+        return {}
+    except Exception:
+        return {}
 
 
 def evaluate_all():
