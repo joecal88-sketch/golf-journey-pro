@@ -39,15 +39,16 @@ components.html(
 seed_demo_if_empty()
 newly = evaluate_all()
 
-from page_modules import dashboard, practice, live_round, coach, performance, roadmap
+from page_modules import dashboard, practice, live_round, coach, performance, roadmap, achievements_page
 
 PAGES = [
-    ("home",     "🏠", "Command",   dashboard.render),
-    ("practice", "🏌️", "Practice",  practice.render),
-    ("live",     "📍", "Live Round", live_round.render),
-    ("plan",     "🎯", "Plan",      roadmap.render),
-    ("coach",    "🎓", "Coach",     coach.render),
-    ("stats",    "📈", "Stats",     performance.render),
+    ("home",     "🏠", "Command",       dashboard.render),
+    ("practice", "🏌️", "Practice",      practice.render),
+    ("live",     "📍", "Live Round",    live_round.render),
+    ("plan",     "🎯", "Plan",          roadmap.render),
+    ("coach",    "🎓", "Coach",         coach.render),
+    ("stats",    "📈", "Stats",         performance.render),
+    ("trophy",   "🏆", "Achievements",  achievements_page.render),
 ]
 
 if "active_page" not in st.session_state:
@@ -113,11 +114,12 @@ with st.sidebar:
 
     st.markdown(
         f"""
-        <div style="margin-top:14px;padding:14px;background:{COLORS['bg_2']};border:1px solid {COLORS['border']};border-radius:14px;">
+        <div style="margin-top:14px;padding:14px;background:linear-gradient(135deg,rgba(212,162,76,0.10),{COLORS['bg_2']});border:1px solid {COLORS['border']};border-radius:14px;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
                 <div>
                     <div style="font-size:10px;color:{COLORS['cream_dim']};letter-spacing:0.18em;text-transform:uppercase;font-weight:700;">Achievements</div>
                     <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:{COLORS['flag']};line-height:1;margin-top:4px;">{a_stats['unlocked']}<span style="color:{COLORS['cream_dim']};font-size:14px;"> / {a_stats['total']}</span></div>
+                    <div style="font-size:10px;color:{COLORS['flag']};margin-top:3px;font-weight:700;letter-spacing:0.05em;">{a_stats['points']:,} pts</div>
                 </div>
                 <div style="font-size:30px;">🏆</div>
             </div>
@@ -125,6 +127,7 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
+    st.button("View all 100 →", key="side_view_ach", use_container_width=True, on_click=_go, args=("trophy",))
 
     if newly:
         st.markdown(
